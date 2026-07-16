@@ -1,4 +1,4 @@
-﻿from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 from xml.sax.saxutils import escape
@@ -63,14 +63,202 @@ def quick_location(path, params=None):
         url = f"{url}?{query}"
     key = f"{path}:{query}"
     if key not in _QUICK_CACHE:
-        _QUICK_CACHE[key] = get_json(url)
+        try:
+            _QUICK_CACHE[key] = get_json(url)
+        except Exception as exc:
+            _QUICK_CACHE[key] = {"success": False, "_error": str(exc), "result": {}}
     payload = _QUICK_CACHE[key]
     return payload.get("result", payload) if isinstance(payload, dict) else payload
 
 
+def quick_rows(payload, plural_key):
+    if isinstance(payload, dict):
+        rows = payload.get(plural_key) or payload.get("items") or payload.get("data") or payload.get("results")
+        if isinstance(rows, list):
+            return rows
+    return payload if isinstance(payload, list) else []
+
+
 def norm_text(value):
-    text = unicodedata.normalize("NFKD", str(value or "")).encode("ascii", "ignore").decode("ascii")
+    raw = (
+        str(value or "")
+        .replace("Ý", "I")
+        .replace("ý", "i")
+        .replace("Þ", "S")
+        .replace("þ", "s")
+        .replace("Ð", "G")
+        .replace("ð", "g")
+    )
+    text = unicodedata.normalize("NFKD", raw).encode("ascii", "ignore").decode("ascii")
     return re.sub(r"[^a-z0-9]+", " ", text.lower()).strip()
+
+
+def item_label(item):
+    if not isinstance(item, dict):
+        return str(item or "")
+    for key in ("name", "label", "text", "value", "title", "description", "doorNo", "spaceNo"):
+        if item.get(key):
+            return str(item.get(key))
+    return str(item)
+
+
+def pick_by_name(rows, wanted):
+    wanted_norm = norm_text(wanted)
+    if not wanted_norm:
+        return rows[0] if rows else None
+    scored = []
+    for row in rows:
+        label_norm = norm_text(item_label(row))
+        if label_norm == wanted_norm:
+            return row
+        if wanted_norm in label_norm or label_norm in wanted_norm:
+            scored.append((abs(len(label_norm) - len(wanted_norm)), row))
+    if scored:
+        return sorted(scored, key=lambda item: item[0])[0][1]
+    tokens = set(wanted_norm.split())
+    for row in rows:
+        label_tokens = set(norm_text(item_label(row)).split())
+        if tokens and tokens.issubset(label_tokens):
+            return row
+    return None
+
+
+def row_id(row):
+    if not isinstance(row, dict):
+        return ""
+    for key in ("id", "value", "code", "buildingId", "neighbourhoodId", "streetId"):
+        if row.get(key) not in (None, ""):
+            return row.get(key)
+    return ""
+
+
+def split_city_district(value):
+    parts = [part.strip() for part in re.split(r"/|-", str(value or ""), maxsplit=1)]
+    city = parts[0] if parts else ""
+    district = parts[1] if len(parts) > 1 else ""
+    return city, district
+
+
+def outer_door_candidates(outer_door, block_no):
+    outer = str(outer_door or "").strip()
+    block = str(block_no or "").strip().upper()
+    compact_outer = re.sub(r"\s+", "", outer).upper()
+    spaced_outer = re.sub(r"(\d+)([A-ZÇĞİÖŞÜ]+)", r"\1 \2", compact_outer)
+    candidates = [outer, compact_outer, spaced_outer]
+    if block:
+        candidates.extend([
+            f"{outer} {block}-BLOK",
+            f"{compact_outer} {block}-BLOK",
+            f"{spaced_outer} {block}-BLOK",
+            f"{outer} {block} BLOK",
+            f"{spaced_outer} {block} BLOK",
+        ])
+    seen = []
+    for candidate in candidates:
+        clean = re.sub(r"\s+", " ", str(candidate or "").strip())
+        if clean and clean not in seen:
+            seen.append(clean)
+    return seen
+
+
+def try_quick_address_lookup(body):
+    city, district = split_city_district(body.get("city_district") or body.get("title"))
+    city = body.get("city") or city
+    district = body.get("district") or district
+    admin_neighborhood = body.get("administrative_neighborhood") or body.get("neighborhood") or ""
+    street_name = body.get("street_name") or ""
+    outer_door = body.get("outer_door_no") or body.get("door_no") or ""
+    inner_door = body.get("inner_door_no") or body.get("bb_no") or ""
+    block_no = body.get("block_no") or ""
+
+    if not (city and district and admin_neighborhood and street_name and outer_door):
+        missing = [
+            label for label, value in (
+                ("il", city),
+                ("ilçe", district),
+                ("idari mahalle", admin_neighborhood),
+                ("cadde/sokak", street_name),
+                ("dış kapı", outer_door),
+            )
+            if not value
+        ]
+        return {"ok": False, "message": "Quick otomatik sorgu için eksik alan: " + ", ".join(missing)}
+
+    city_row = pick_by_name(quick_rows(quick_location("city"), "cities"), city)
+    if not city_row:
+        return {"ok": False, "message": f"Quick il listesinde bulunamadı: {city}"}
+    county_row = pick_by_name(quick_rows(quick_location("county", {"cityId": row_id(city_row)}), "counties"), district)
+    if not county_row:
+        return {"ok": False, "message": f"Quick ilçe listesinde bulunamadı: {district}"}
+
+    town_payload = quick_location("town", {"countyId": row_id(county_row)})
+    town_row = pick_by_name(quick_rows(town_payload, "towns"), "MERKEZ")
+    if not town_row:
+        return {"ok": False, "message": "Quick bucak listesi alınamadı; reCAPTCHA nedeniyle manuel Quick ekranı gerekebilir."}
+
+    village_payload = quick_location("village", {"townId": row_id(town_row)})
+    village_row = pick_by_name(quick_rows(village_payload, "villages"), "MERKEZ")
+    if not village_row:
+        return {"ok": False, "message": "Quick köy listesi alınamadı; reCAPTCHA nedeniyle manuel Quick ekranı gerekebilir."}
+
+    neighborhood_row = pick_by_name(
+        quick_rows(quick_location("neighbourhood", {"villageId": row_id(village_row)}), "neighbourhoods"),
+        admin_neighborhood,
+    )
+    if not neighborhood_row:
+        return {"ok": False, "message": f"Quick mahalle listesinde bulunamadı: {admin_neighborhood}"}
+
+    street_row = pick_by_name(
+        quick_rows(quick_location("street", {"neighbourhoodId": row_id(neighborhood_row)}), "streets"),
+        street_name,
+    )
+    if not street_row:
+        return {"ok": False, "message": f"Quick sokak listesinde bulunamadı: {street_name}"}
+
+    buildings = quick_rows(quick_location("building", {"streetId": row_id(street_row)}), "buildings")
+    building_row = None
+    for candidate in outer_door_candidates(outer_door, block_no):
+        building_row = pick_by_name(buildings, candidate)
+        if building_row:
+            break
+    if not building_row:
+        return {"ok": False, "message": f"Quick dış kapı listesinde bulunamadı: {outer_door}"}
+
+    spaces = quick_rows(quick_location("space", {"buildingId": row_id(building_row)}), "spaces")
+    space_row = pick_by_name(spaces, inner_door) if inner_door else (spaces[0] if spaces else None)
+    if not space_row:
+        return {"ok": False, "message": f"Quick iç kapı listesinde bulunamadı: {inner_door or '-'}"}
+
+    address_code = (
+        space_row.get("uavtCode")
+        or space_row.get("uavt")
+        or space_row.get("addressCode")
+        or space_row.get("code")
+        or row_id(space_row)
+    )
+    building_code = (
+        building_row.get("buildingCode")
+        or building_row.get("buildingIdentityNo")
+        or building_row.get("code")
+        or row_id(building_row)
+    )
+    return {
+        "ok": bool(address_code or building_code),
+        "address_code": str(address_code or ""),
+        "building_code": str(building_code or ""),
+        "address": ", ".join(
+            part
+            for part in [
+                str(item_label(neighborhood_row)).title(),
+                str(item_label(street_row)).title(),
+                str(item_label(building_row)),
+                str(item_label(space_row)),
+                f"{district}/{city}".upper(),
+            ]
+            if part
+        ),
+        "message": "Quick Sigorta adres kodu ve bina kodu otomatik okundu.",
+    }
 
 
 def parse_feature_list(data, key_name):
@@ -340,8 +528,6 @@ AFAD_REFERENCE_POINTS = [
 ]
 
 AFAD_GRID_CSV = DATA / "afad_pga_akbank_grid.csv"
-if not AFAD_GRID_CSV.exists() and ROOT_PGA_GRID.exists():
-    AFAD_GRID_CSV = ROOT_PGA_GRID
 _AFAD_GRID = None
 
 
@@ -523,10 +709,14 @@ def parse_takbis_upload_text(text):
         asset_type = ""
 
     block = first_match([
+        r"Blok/Kat/Giri(?:ş|s|þ)/BBNo\s*[:=-]?\s*([A-ZÇÐÝÖÞÜ0-9]+)\s*/",
+        r"Blok/Kat/Giriş/BBNo\s*[:=-]?\s*([A-ZÇĞİÖŞÜ0-9]+)\s*/",
         r"(?:blok|block)\s*(?:no|adı|adi)?\s*[:=-]?\s*([A-ZÇĞİÖŞÜ0-9]+)",
         r"\b([A-ZÇĞİÖŞÜ])\s*(?:blok|block)\b",
     ])
     bb = first_match([
+        r"Blok/Kat/Giri(?:ş|s|þ)/BBNo\s*[:=-]?\s*[A-ZÇÐÝÖÞÜ0-9]+\s*/[^/]*//\s*(\d+)",
+        r"Blok/Kat/Giriş/BBNo\s*[:=-]?\s*[A-ZÇĞİÖŞÜ0-9]+\s*/[^/]*//\s*([A-ZÇĞİÖŞÜ]?\s*\d+\s*[A-ZÇĞİÖŞÜ]?)",
         r"(?:bb|b\.b\.|bağımsız bölüm|bagimsiz bolum|bağ\.?\s*böl\.?|bag\.?\s*bol\.?)\s*(?:no|numarası|numarasi|nu|nolu)?\s*[:=-]?\s*([A-ZÇĞİÖŞÜ]?\s*\d+\s*[A-ZÇĞİÖŞÜ]?|\d+\s*/\s*[A-ZÇĞİÖŞÜ0-9]+|[A-ZÇĞİÖŞÜ]\s*/\s*\d+)",
         r"(?:iç kapı|ic kapi|içkapı|ickapi)\s*(?:no|numarası|numarasi)?\s*[:=-]?\s*([A-ZÇĞİÖŞÜ]?\s*\d+\s*[A-ZÇĞİÖŞÜ]?|\d+\s*/\s*[A-ZÇĞİÖŞÜ0-9]+|[A-ZÇĞİÖŞÜ]\s*/\s*\d+)",
         r"(?:daire|mesken)\s*(?:no|numarası|numarasi)?\s*[:=-]?\s*([A-ZÇĞİÖŞÜ]?\s*\d+\s*[A-ZÇĞİÖŞÜ]?|\d+\s*/\s*[A-ZÇĞİÖŞÜ0-9]+|[A-ZÇĞİÖŞÜ]\s*/\s*\d+)",
@@ -657,6 +847,9 @@ class Handler(SimpleHTTPRequestHandler):
                 "town": ("town", {"countyId": (params.get("countyId") or [""])[0]}),
                 "village": ("village", {"townId": (params.get("townId") or [""])[0]}),
                 "neighbourhood": ("neighbourhood", {"villageId": (params.get("villageId") or [""])[0]}),
+                "street": ("street", {"neighbourhoodId": (params.get("neighbourhoodId") or [""])[0]}),
+                "building": ("building", {"streetId": (params.get("streetId") or [""])[0]}),
+                "space": ("space", {"buildingId": (params.get("buildingId") or [""])[0]}),
             }
             if kind not in allowed:
                 self.send_json({"status": "error", "message": "Desteklenmeyen adres liste tipi"}, 400)
@@ -845,6 +1038,9 @@ class Handler(SimpleHTTPRequestHandler):
                 "town": ("town", {"countyId": (params.get("countyId") or [""])[0]}),
                 "village": ("village", {"townId": (params.get("townId") or [""])[0]}),
                 "neighbourhood": ("neighbourhood", {"villageId": (params.get("villageId") or [""])[0]}),
+                "street": ("street", {"neighbourhoodId": (params.get("neighbourhoodId") or [""])[0]}),
+                "building": ("building", {"streetId": (params.get("streetId") or [""])[0]}),
+                "space": ("space", {"buildingId": (params.get("buildingId") or [""])[0]}),
             }
             if kind not in allowed:
                 self.send_json({"status": "error", "message": "Desteklenmeyen adres liste tipi"}, 400)
@@ -919,17 +1115,32 @@ class Handler(SimpleHTTPRequestHandler):
 
         if parsed.path == "/api/uavt/lookup":
             body = self.read_body_json()
-            building_code = body.get("building_code") or body.get("building_identity_no") or ""
+            quick_result = {}
+            try:
+                if not (body.get("address_code") and (body.get("building_code") or body.get("building_identity_no"))):
+                    quick_result = try_quick_address_lookup(body)
+            except Exception as exc:
+                quick_result = {"ok": False, "message": f"Quick otomatik sorgu tamamlanamadı: {exc}"}
+
+            address_code = body.get("address_code") or quick_result.get("address_code") or ""
+            building_code = (
+                body.get("building_code")
+                or body.get("building_identity_no")
+                or quick_result.get("building_code")
+                or ""
+            )
             response = {
-                "status": "ok" if (body.get("address_code") or building_code) else "needs_auth",
+                "status": "ok" if (address_code or building_code) else "needs_auth",
                 "source": "Quick Sigorta Adres Kodu / NVI Adres Sorgu",
                 "input": body,
-                "label": "Adres kodu kaydedildi" if body.get("address_code") else "Adres kodu entegrasyonu gerekli",
-                "uavt": body.get("address_code", ""),
-                "address_code": body.get("address_code", ""),
+                "label": "Adres kodu okundu" if address_code else "Adres kodu entegrasyonu gerekli",
+                "uavt": address_code,
+                "address_code": address_code,
                 "building_identity_no": building_code,
                 "building_code": building_code,
+                "address": quick_result.get("address") or body.get("address") or "",
                 "message": "Adres kodu ve bina kodu kaydedildi; bina kodu BEP-TR/EKB için bina kimlik no olarak kullanılacak." if building_code else "Adres kodu paketi kaydedildi; Quick/NVI sonucu gelince bina kodu, EKB için bina kimlik no olarak kullanılacak.",
+                "quick_message": quick_result.get("message", ""),
                 "quick_address_url": "https://quicksigorta.com/adres-kodu-sorgulama",
                 "nvi_url": "https://adres.nvi.gov.tr/VatandasIslemleri/AdresSorgu",
                 "next_step": "Adres kodu sorgusundan bina kodu gelirse BEP-TR/EKB sorgusuna otomatik geçilecek.",
