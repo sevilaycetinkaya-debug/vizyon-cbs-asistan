@@ -852,7 +852,8 @@
     }
 
     .manual-row input,
-    .address-code-row input {
+    .address-code-row input,
+    .address-code-row select {
       height: 32px;
       min-width: 0;
       border-radius: 8px;
@@ -1100,7 +1101,7 @@
           <div class="company-title">
             <h1>V&#304;ZYON TA&#350;INMAZ DE&#286;ERLEME VE DANI&#350;MANLIK A.&#350;.</h1>
             <p>Vizyon Asistan - CBS Veri A&#287;&#305;</p>
-            <p class="version-note">S&#252;r&#252;m: 16.07.2026 18:45</p>
+            <p class="version-note">S&#252;r&#252;m: 16.07.2026 19:20</p>
           </div>
         </div>
         <div class="search">
@@ -1267,6 +1268,9 @@
             <div class="fact wide"><span>Adres</span><strong id="addressValue">NVI/SAYS sonucu</strong></div>
           </div>
           <div class="address-code-row">
+            <select id="manualAdministrativeNeighborhoodSelect" aria-label="İdari mahalle seç">
+              <option value="">İdari mahalle seç</option>
+            </select>
             <input id="manualAdministrativeNeighborhood" list="idariMahalleList" placeholder="İdari mahalle">
             <input id="manualStreetName" placeholder="Cadde / Sokak">
             <input id="manualSiteName" placeholder="Site / apartman adı">
@@ -1513,8 +1517,18 @@
       return payload;
     }
 
-    function applyTkgmParcel(parcel) {
-      if (!parcel || parcel.status !== "ok") return;
+    function geometryCenterFromParcel(parcel) {
+      const ring = parcel?.geometry?.coordinates?.[0];
+      if (!Array.isArray(ring) || !ring.length) return null;
+      const points = ring
+        .map(item => ({ lat: Number(item[1]), lng: Number(item[0]) }))
+        .filter(point => Number.isFinite(point.lat) && Number.isFinite(point.lng));
+      if (!points.length) return null;
+      return centerOf(points);
+    }
+
+    function applyTkgmParcel(parcel, options = {}) {
+      if (!parcel || parcel.status !== "ok") return null;
       const summary = parcel.summary || {};
       const props = parcel.properties || {};
       const blocks = parcel.blocks || {};
@@ -1558,8 +1572,19 @@
         map.fitBounds(kmlLayer.getBounds(), { padding: [40, 40] });
       }
 
+      const parcelCenter = geometryCenterFromParcel(parcel);
+      if (parcelCenter && options.runAnalysis) {
+        update(parcelCenter.lat, parcelCenter.lng, "coord");
+      } else if (parcelCenter && !selectedCoordinate) {
+        selectedCoordinate = { lat: parcelCenter.lat, lng: parcelCenter.lng };
+        document.getElementById("coordText").textContent =
+          `${parcelCenter.lat.toFixed(6)}, ${parcelCenter.lng.toFixed(6)}`;
+        externalLinkleriGuncelle(parcelCenter.lat, parcelCenter.lng);
+      }
+
       document.getElementById("requestLine").textContent =
         `GET TKGM /parsel/${Number(selectedCoordinate?.lat || 0).toFixed(6)}/${Number(selectedCoordinate?.lng || 0).toFixed(6)}/`;
+      return parcelCenter;
     }
 
     async function zeminVePgaKartlariniGuncelle(lat, lng) {
@@ -1730,13 +1755,23 @@
 
     async function loadAdministrativeNeighborhoods(city, district, preferred = "") {
       const list = document.getElementById("idariMahalleList");
+      const select = document.getElementById("manualAdministrativeNeighborhoodSelect");
       if (!list || !city || !district) return [];
+      if (select) select.innerHTML = `<option value="">İdari mahalle seç</option>`;
       try {
         const response = await fetch(`/api/admin-neighborhoods?city=${encodeURIComponent(city)}&district=${encodeURIComponent(district)}`);
         const payload = await response.json();
         const rows = payload.neighborhoods || [];
         list.innerHTML = "";
-        rows.forEach(row => addDatalistOption("idariMahalleList", row.name));
+        rows.forEach(row => {
+          addDatalistOption("idariMahalleList", row.name);
+          if (select) {
+            const option = document.createElement("option");
+            option.value = row.name;
+            option.textContent = titleCaseTr(row.name);
+            select.appendChild(option);
+          }
+        });
         if (preferred) addDatalistOption("idariMahalleList", preferred);
         return rows;
       } catch {
@@ -1770,11 +1805,11 @@
       const innerInput = document.getElementById("manualInnerDoorNo");
       const cleanNeighborhood = cleanAddressPart(neighborhood);
       const cityDistrict = currentCityDistrictParts();
-      loadAdministrativeNeighborhoods(cityDistrict.city, cityDistrict.district, cleanNeighborhood);
-      if (cleanNeighborhood) {
+      const tapuOnlyNeighborhood = /\bş\.?$/i.test(cleanNeighborhood);
+      loadAdministrativeNeighborhoods(cityDistrict.city, cityDistrict.district, tapuOnlyNeighborhood ? "" : cleanNeighborhood);
+      if (cleanNeighborhood && !tapuOnlyNeighborhood) {
         addDatalistOption("idariMahalleList", cleanNeighborhood);
       }
-      const tapuOnlyNeighborhood = /\bş\.?$/i.test(cleanNeighborhood);
       if (cleanNeighborhood && !tapuOnlyNeighborhood && !adminInput.value.trim()) {
         adminInput.value = cleanNeighborhood.toLocaleUpperCase("tr-TR");
       }
@@ -2209,8 +2244,9 @@
           try {
             document.getElementById("statusText").textContent = "TAKBİS ada/parsel okundu; TKGM harita sorgusu otomatik çalışıyor.";
             const payload = await vizyonTkgmTextSearch(query);
-            applyTkgmParcel(payload.parcel);
-            if (payload.center) update(payload.center.lat, payload.center.lng, "coord");
+            const parcelCenter = applyTkgmParcel(payload.parcel);
+            const center = payload.center || parcelCenter;
+            if (center) update(center.lat, center.lng, "coord");
             document.getElementById("statusText").textContent = "TAKBİS -> TKGM sorgusu tamamlandı; parsel haritada güncellendi.";
           } catch (error) {
             document.getElementById("statusText").textContent =
@@ -2272,8 +2308,8 @@
           setLocator("TKGM Metin", ["stepTkgm"]);
           document.getElementById("statusText").textContent = "TKGM il/ilce/mahalle/ada/parsel eslestirmesi calisiyor.";
           const payload = await vizyonTkgmTextSearch(raw);
-          applyTkgmParcel(payload.parcel);
-          const center = payload.center;
+          const parcelCenter = applyTkgmParcel(payload.parcel);
+          const center = payload.center || parcelCenter;
           if (center) {
             update(center.lat, center.lng, "coord");
           }
@@ -2614,10 +2650,28 @@
     ["citySelect", "districtSelect", "neighborhoodSelect", "tkgmUnitInput", "blockInput", "parcelInput", "bbInput"]
       .forEach(id => document.getElementById(id).addEventListener("input", syncRequestLine));
 
-    document.getElementById("manualAdministrativeNeighborhood").addEventListener("focus", () => {
+    const adminNeighborhoodSelect = document.getElementById("manualAdministrativeNeighborhoodSelect");
+    const adminNeighborhoodInput = document.getElementById("manualAdministrativeNeighborhood");
+    const refreshAdminNeighborhoods = () => {
       const cityDistrict = currentCityDistrictParts();
-      loadAdministrativeNeighborhoods(cityDistrict.city, cityDistrict.district, document.getElementById("neighborhoodValue").textContent);
-    });
+      loadAdministrativeNeighborhoods(cityDistrict.city, cityDistrict.district, adminNeighborhoodInput.value.trim());
+    };
+    if (adminNeighborhoodInput) {
+      adminNeighborhoodInput.addEventListener("focus", refreshAdminNeighborhoods);
+      adminNeighborhoodInput.addEventListener("input", () => {
+        if (adminNeighborhoodSelect && adminNeighborhoodSelect.value !== adminNeighborhoodInput.value) {
+          adminNeighborhoodSelect.value = "";
+        }
+      });
+    }
+    if (adminNeighborhoodSelect) {
+      adminNeighborhoodSelect.addEventListener("focus", refreshAdminNeighborhoods);
+      adminNeighborhoodSelect.addEventListener("change", () => {
+        if (adminNeighborhoodSelect.value) {
+          adminNeighborhoodInput.value = adminNeighborhoodSelect.value;
+        }
+      });
+    }
 
     syncRequestLine();
 
