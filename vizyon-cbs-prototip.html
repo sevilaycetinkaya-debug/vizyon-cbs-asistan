@@ -851,9 +851,26 @@
       margin-top: 8px;
     }
 
+    .address-field {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      gap: 4px;
+    }
+
+    .address-field span {
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 850;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
     .manual-row input,
     .address-code-row input,
-    .address-code-row select {
+    .address-code-row select,
+    .address-field input,
+    .address-field select {
       height: 32px;
       min-width: 0;
       border-radius: 8px;
@@ -1101,7 +1118,7 @@
           <div class="company-title">
             <h1>V&#304;ZYON TA&#350;INMAZ DE&#286;ERLEME VE DANI&#350;MANLIK A.&#350;.</h1>
             <p>Vizyon Asistan - CBS Veri A&#287;&#305;</p>
-            <p class="version-note">S&#252;r&#252;m: 16.07.2026 19:20</p>
+            <p class="version-note">Sürüm: 16.07.2026 23:54</p>
           </div>
         </div>
         <div class="search">
@@ -1260,24 +1277,26 @@
             <span class="tag">Yetkili veri</span>
           </div>
           <div class="facts">
-            <div class="fact"><span>TAKBİS Tipi</span><strong id="takbisAssetType">Ana taşınmaz / BB kontrolü</strong></div>
+            <div class="fact"><span>TAKBİS Türü</span><strong id="takbisAssetType">Ana taşınmaz / BB kontrolü</strong></div>
             <div class="fact"><span>BB No</span><strong id="takbisBbNo" class="pending-value">TAKBİS bekleniyor</strong></div>
+            <div class="fact wide"><span>İl / İlçe</span><strong id="uavtCityDistrictValue">TKGM bekleniyor</strong></div>
             <div class="fact wide"><span>TAKBİS</span><strong id="takbisBarcodeStatus" class="pending-value">Belge yüklenmedi</strong></div>
             <div class="fact"><span>UAVT</span><strong id="uavtValue" class="pending-value">Adres sorgu</strong></div>
             <div class="fact"><span>Bina Kodu / Kimlik No</span><strong id="buildingIdValue" class="pending-value">Adres kodu sonrası bekleniyor</strong></div>
             <div class="fact wide"><span>Adres</span><strong id="addressValue">NVI/SAYS sonucu</strong></div>
           </div>
           <div class="address-code-row">
-            <select id="manualAdministrativeNeighborhoodSelect" aria-label="İdari mahalle seç">
+            <label class="address-field"><span>İdari mah.</span><select id="manualAdministrativeNeighborhoodSelect" aria-label="İdari mahalle seç">
               <option value="">İdari mahalle seç</option>
-            </select>
-            <input id="manualAdministrativeNeighborhood" list="idariMahalleList" placeholder="İdari mahalle">
-            <input id="manualStreetName" placeholder="Cadde / Sokak">
-            <input id="manualSiteName" placeholder="Site / apartman adı">
-            <input id="manualBlockNo" placeholder="Blok">
-            <input id="manualBbNo" placeholder="BB no">
-            <input id="manualBuildingId" placeholder="Bina / dış kapı no">
-            <input id="manualInnerDoorNo" placeholder="İç kapı no">
+            </select></label>
+            <label class="address-field"><span>Tapu mah.</span><input id="manualTapuNeighborhood" placeholder="Tapu mah."></label>
+            <input id="manualAdministrativeNeighborhood" list="idariMahalleList" type="hidden">
+            <label class="address-field"><span>Cadde / Sokak</span><input id="manualStreetName" placeholder="Cadde / Sokak"></label>
+            <label class="address-field"><span>Site adı</span><input id="manualSiteName" placeholder="Site / apartman adı"></label>
+            <label class="address-field"><span>Blok</span><input id="manualBlockNo" placeholder="Blok"></label>
+            <label class="address-field"><span>BB no</span><input id="manualBbNo" placeholder="BB no"></label>
+            <label class="address-field"><span>Dış kapı no</span><input id="manualBuildingId" placeholder="Bina / dış kapı no"></label>
+            <label class="address-field"><span>İç kapı no</span><input id="manualInnerDoorNo" placeholder="İç kapı no"></label>
             <datalist id="idariMahalleList"></datalist>
           </div>
           <div class="manual-row">
@@ -1534,6 +1553,7 @@
       const blocks = parcel.blocks || {};
 
       setValue("cityDistrictValue", [summary.il, summary.ilce].filter(Boolean).join(" / "));
+      setValue("uavtCityDistrictValue", [summary.il, summary.ilce].filter(Boolean).join(" / "));
       setValue("neighborhoodValue", summary.mahalle);
       prefillAddressCodeFields({ neighborhood: summary.mahalle });
       setValue("parcelValue", summary.ada && summary.parsel ? `${summary.ada}/${summary.parsel}` : "");
@@ -1593,6 +1613,7 @@
       const lngText = Number(lng).toFixed(6);
       let vs30Source = "USGS";
       let sonuc = fallback;
+      let serverPga = null;
 
       try {
         const apiResult = await vizyonServerLookup(lat, lng);
@@ -1601,6 +1622,7 @@
 
           if (apiResult.pga?.pga_g != null) {
             const pga = Number(apiResult.pga.pga_g);
+            serverPga = pga;
             document.getElementById("pga").textContent = pga.toFixed(3).replace(".", ",");
             document.getElementById("pgaUnit").textContent = "g";
             document.getElementById("afadStatusNote").textContent =
@@ -1624,7 +1646,7 @@
 
           document.getElementById("statusText").textContent =
             `Vizyon server sorgusu tamamlandı: ${apiResult.meta?.sources_called?.join(", ") || "kayıt hazır"}`;
-          return;
+          if (apiResult.soil?.status === "ok") return;
         }
       } catch (error) {
         document.getElementById("statusText").textContent =
@@ -1658,9 +1680,10 @@
         return;
       }
 
-      const hasPga = Number.isFinite(sonuc.pga475);
+      const pgaValue = Number.isFinite(serverPga) ? serverPga : sonuc.pga475;
+      const hasPga = Number.isFinite(pgaValue);
       document.getElementById("pga").textContent = hasPga
-        ? sonuc.pga475.toFixed(3).replace(".", ",")
+        ? pgaValue.toFixed(3).replace(".", ",")
         : "AFAD";
       document.getElementById("pgaUnit").textContent = hasPga ? "g" : "";
       document.getElementById("soilCode").textContent = sonuc.zeminSinifi;
@@ -1763,6 +1786,8 @@
         const payload = await response.json();
         const rows = payload.neighborhoods || [];
         list.innerHTML = "";
+        let matchedPreferred = "";
+        const normalizedPreferred = normalizeTr(preferred);
         rows.forEach(row => {
           addDatalistOption("idariMahalleList", row.name);
           if (select) {
@@ -1771,8 +1796,16 @@
             option.textContent = titleCaseTr(row.name);
             select.appendChild(option);
           }
+          if (preferred && normalizeTr(row.name) === normalizedPreferred) {
+            matchedPreferred = row.name;
+          }
         });
         if (preferred) addDatalistOption("idariMahalleList", preferred);
+        if (select && matchedPreferred) {
+          select.value = matchedPreferred;
+          const adminInput = document.getElementById("manualAdministrativeNeighborhood");
+          if (adminInput && !adminInput.value.trim()) adminInput.value = matchedPreferred;
+        }
         return rows;
       } catch {
         if (preferred) addDatalistOption("idariMahalleList", preferred);
@@ -1788,30 +1821,38 @@
       if (mahalle) parts.push(`${titleCaseTr(mahalle)} Mahallesi`);
       if (street) parts.push(`${titleCaseTr(street)} Sokak`);
       if (packet.siteName) parts.push(titleCaseTr(packet.siteName));
-      if (packet.blockNo) parts.push(`${String(packet.blockNo).toLocaleUpperCase("tr-TR")} blok`);
-      if (packet.outerDoor) parts.push(`No:${String(packet.outerDoor).toLocaleUpperCase("tr-TR")}`);
-      if (packet.innerDoor) parts.push(`D:${String(packet.innerDoor).toLocaleUpperCase("tr-TR")}`);
+      if (packet.blockNo) parts.push(`${String(packet.blockNo).toLocaleUpperCase("tr-TR")} Blok`);
+      if (packet.outerDoor) parts.push(`Dış kapı: ${String(packet.outerDoor).toLocaleUpperCase("tr-TR")}`);
+      if (packet.innerDoor) parts.push(`No: ${String(packet.innerDoor).toLocaleUpperCase("tr-TR")}`);
       const suffix = cityDistrict.city && cityDistrict.district
-        ? `${cityDistrict.district.toLocaleUpperCase("tr-TR")}/${cityDistrict.city.toLocaleUpperCase("tr-TR")}`
+        ? `${titleCaseTr(cityDistrict.district)}/${cityDistrict.city.toLocaleUpperCase("tr-TR")}`
         : "";
-      return [parts.join(", "), suffix].filter(Boolean).join(" ");
+      return [parts.join(" "), suffix].filter(Boolean).join(" ");
     }
 
     function prefillAddressCodeFields({ neighborhood, streetName, blockNo, bbNo, innerDoorNo } = {}) {
       const adminInput = document.getElementById("manualAdministrativeNeighborhood");
+      const adminSelect = document.getElementById("manualAdministrativeNeighborhoodSelect");
+      const tapuInput = document.getElementById("manualTapuNeighborhood");
       const streetInput = document.getElementById("manualStreetName");
       const blockInput = document.getElementById("manualBlockNo");
       const bbInput = document.getElementById("manualBbNo");
       const innerInput = document.getElementById("manualInnerDoorNo");
       const cleanNeighborhood = cleanAddressPart(neighborhood);
       const cityDistrict = currentCityDistrictParts();
+      const cityDistrictText = [cityDistrict.city, cityDistrict.district].filter(Boolean).join(" / ");
+      if (cityDistrictText) setValue("uavtCityDistrictValue", cityDistrictText);
       const tapuOnlyNeighborhood = /\bş\.?$/i.test(cleanNeighborhood);
       loadAdministrativeNeighborhoods(cityDistrict.city, cityDistrict.district, tapuOnlyNeighborhood ? "" : cleanNeighborhood);
+      if (cleanNeighborhood && tapuInput && !tapuInput.value.trim()) {
+        tapuInput.value = cleanNeighborhood;
+      }
       if (cleanNeighborhood && !tapuOnlyNeighborhood) {
         addDatalistOption("idariMahalleList", cleanNeighborhood);
       }
       if (cleanNeighborhood && !tapuOnlyNeighborhood && !adminInput.value.trim()) {
         adminInput.value = cleanNeighborhood.toLocaleUpperCase("tr-TR");
+        if (adminSelect) adminSelect.value = cleanNeighborhood.toLocaleUpperCase("tr-TR");
       }
       if (streetName && !streetInput.value.trim()) {
         streetInput.value = cleanAddressPart(streetName).toLocaleUpperCase("tr-TR");
@@ -1834,7 +1875,9 @@
       const blockNo = document.getElementById("manualBlockNo").value.trim();
       const bbNo = document.getElementById("manualBbNo").value.trim();
       const innerDoor = document.getElementById("manualInnerDoorNo").value.trim() || bbNo;
-      const administrativeNeighborhood = document.getElementById("manualAdministrativeNeighborhood").value.trim();
+      const adminSelect = document.getElementById("manualAdministrativeNeighborhoodSelect");
+      const administrativeNeighborhood =
+        (adminSelect?.value || document.getElementById("manualAdministrativeNeighborhood").value || "").trim();
       const addressCode = document.getElementById("manualAddressCode").value.trim();
       const buildingCode = document.getElementById("manualBuildingCode").value.trim();
       return {
@@ -1848,7 +1891,7 @@
         addressCode,
         buildingCode,
         cityDistrict: document.getElementById("cityDistrictValue").textContent,
-        tapuNeighborhood: document.getElementById("neighborhoodValue").textContent,
+        tapuNeighborhood: (document.getElementById("manualTapuNeighborhood")?.value || document.getElementById("neighborhoodValue").textContent || "").trim(),
         parcel: document.getElementById("parcelValue").textContent,
         coordinate: selectedCoordinate,
         title: document.getElementById("placeTitle").textContent,
@@ -2583,18 +2626,7 @@
         return;
       }
 
-      document.getElementById("addressValue").textContent =
-        [
-          packet.administrativeNeighborhood ? `İdari mahalle: ${packet.administrativeNeighborhood}` : "",
-          packet.streetName ? `Sokak: ${packet.streetName}` : "",
-          packet.siteName ? `Site/Apartman: ${packet.siteName}` : "",
-          packet.blockNo ? `Blok: ${packet.blockNo}` : "",
-          `Dış kapı: ${packet.outerDoor}`,
-          packet.innerDoor ? `İç kapı: ${packet.innerDoor}` : "",
-          packet.bbNo ? `BB: ${packet.bbNo}` : "",
-          packet.addressCode ? `Adres kodu: ${packet.addressCode}` : "",
-          packet.buildingCode ? `Bina kodu: ${packet.buildingCode}` : ""
-        ].filter(Boolean).join(" / ");
+      document.getElementById("addressValue").textContent = buildReadableAddress(packet);
       document.getElementById("statusText").textContent =
         `Adres kodu paketi hazırlanıyor: ${packet.outerDoor}. Adres kodu -> bina kodu/kimlik no -> BEP-TR/EKB akışı.`;
 
@@ -2669,6 +2701,7 @@
       adminNeighborhoodSelect.addEventListener("change", () => {
         if (adminNeighborhoodSelect.value) {
           adminNeighborhoodInput.value = adminNeighborhoodSelect.value;
+          document.getElementById("addressValue").textContent = buildReadableAddress(getAddressCodePacket());
         }
       });
     }
