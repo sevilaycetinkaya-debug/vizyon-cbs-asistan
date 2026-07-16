@@ -22,11 +22,13 @@ DATA = ROOT / "work" / "vizyon-data"
 DATA.mkdir(parents=True, exist_ok=True)
 ROOT_HTML = ROOT / "vizyon-cbs-prototip.html"
 ROOT_PGA_GRID = ROOT / "afad_pga_akbank_grid.csv"
+ADMIN_NEIGHBORHOODS_CSV = ROOT / "admin_neighborhoods.csv"
 TKGM_API_BASE = "https://cbsapi.tkgm.gov.tr/megsiswebapi.v3.1/api"
 TKGM_PARSEL_BASE = "https://parselsorgu.tkgm.gov.tr/app/modules/administrativeQuery/data"
 QUICK_API_BASE = "https://quicksigorta.com/api"
 _TKGM_CACHE = {}
 _QUICK_CACHE = {}
+_ADMIN_NEIGHBORHOOD_CACHE = None
 
 
 def tbdy_zemin_sinifi(vs30):
@@ -82,6 +84,18 @@ def quick_rows(payload, plural_key):
 def norm_text(value):
     raw = (
         str(value or "")
+        .replace("İ", "I")
+        .replace("ı", "i")
+        .replace("Ç", "C")
+        .replace("ç", "c")
+        .replace("Ğ", "G")
+        .replace("ğ", "g")
+        .replace("Ö", "O")
+        .replace("ö", "o")
+        .replace("Ş", "S")
+        .replace("ş", "s")
+        .replace("Ü", "U")
+        .replace("ü", "u")
         .replace("Ý", "I")
         .replace("ý", "i")
         .replace("Þ", "S")
@@ -91,6 +105,58 @@ def norm_text(value):
     )
     text = unicodedata.normalize("NFKD", raw).encode("ascii", "ignore").decode("ascii")
     return re.sub(r"[^a-z0-9]+", " ", text.lower()).strip()
+
+
+def load_admin_neighborhoods():
+    global _ADMIN_NEIGHBORHOOD_CACHE
+    if _ADMIN_NEIGHBORHOOD_CACHE is not None:
+        return _ADMIN_NEIGHBORHOOD_CACHE
+
+    rows = []
+    if ADMIN_NEIGHBORHOODS_CSV.exists():
+        with ADMIN_NEIGHBORHOODS_CSV.open("r", encoding="utf-8-sig", newline="") as handle:
+            for row in csv.DictReader(handle):
+                rows.append(
+                    {
+                        "il": (row.get("il") or "").strip(),
+                        "ilce": (row.get("ilce") or "").strip(),
+                        "mahalle": (row.get("mahalle") or "").strip(),
+                        "tip": (row.get("tip") or "").strip(),
+                        "baglilik": (row.get("baglilik") or "").strip(),
+                    }
+                )
+    _ADMIN_NEIGHBORHOOD_CACHE = rows
+    return rows
+
+
+def admin_neighborhood_options(city, district):
+    city_norm = norm_text(city)
+    district_norm = norm_text(district)
+    options = []
+    seen = set()
+    for row in load_admin_neighborhoods():
+        if city_norm and norm_text(row.get("il")) != city_norm:
+            continue
+        if district_norm and norm_text(row.get("ilce")) != district_norm:
+            continue
+        name = (row.get("mahalle") or "").strip()
+        if not name:
+            continue
+        key = norm_text(name)
+        if key in seen:
+            continue
+        seen.add(key)
+        options.append(
+            {
+                "name": name,
+                "type": row.get("tip") or "MAHALLE",
+                "label": f"{name} {row.get('tip') or 'MAHALLE'}".strip(),
+                "city": row.get("il") or city,
+                "district": row.get("ilce") or district,
+                "source": row.get("baglilik") or "İçişleri mülki idari bölümleri",
+            }
+        )
+    return sorted(options, key=lambda item: norm_text(item.get("name")))
 
 
 def item_label(item):
@@ -104,14 +170,21 @@ def item_label(item):
 
 def pick_by_name(rows, wanted):
     wanted_norm = norm_text(wanted)
+    wanted_compact = wanted_norm.replace(" ", "")
     if not wanted_norm:
         return rows[0] if rows else None
     scored = []
     for row in rows:
         label_norm = norm_text(item_label(row))
-        if label_norm == wanted_norm:
+        label_compact = label_norm.replace(" ", "")
+        if label_norm == wanted_norm or label_compact == wanted_compact:
             return row
-        if wanted_norm in label_norm or label_norm in wanted_norm:
+        if (
+            wanted_norm in label_norm
+            or label_norm in wanted_norm
+            or (wanted_compact and wanted_compact in label_compact)
+            or (label_compact and label_compact in wanted_compact)
+        ):
             scored.append((abs(len(label_norm) - len(wanted_norm)), row))
     if scored:
         return sorted(scored, key=lambda item: item[0])[0][1]
@@ -170,6 +243,8 @@ def try_quick_address_lookup(body):
     outer_door = body.get("outer_door_no") or body.get("door_no") or ""
     inner_door = body.get("inner_door_no") or body.get("bb_no") or ""
     block_no = body.get("block_no") or ""
+    site_name = body.get("site_name") or ""
+    formatted_address = body.get("formatted_address") or ""
 
     if not (city and district and admin_neighborhood and street_name and outer_door):
         missing = [
@@ -246,11 +321,12 @@ def try_quick_address_lookup(body):
         "ok": bool(address_code or building_code),
         "address_code": str(address_code or ""),
         "building_code": str(building_code or ""),
-        "address": ", ".join(
+        "address": formatted_address or ", ".join(
             part
             for part in [
                 str(item_label(neighborhood_row)).title(),
                 str(item_label(street_row)).title(),
+                site_name,
                 str(item_label(building_row)),
                 str(item_label(space_row)),
                 f"{district}/{city}".upper(),
@@ -869,6 +945,22 @@ class Handler(SimpleHTTPRequestHandler):
                     },
                     422,
                 )
+            return
+        if parsed.path == "/api/admin-neighborhoods":
+            params = parse_qs(parsed.query)
+            city = (params.get("city") or [""])[0]
+            district = (params.get("district") or [""])[0]
+            options = admin_neighborhood_options(city, district)
+            self.send_json(
+                {
+                    "status": "ok",
+                    "source": "İçişleri Mülki İdari Bölümleri PDF/CSV",
+                    "city": city,
+                    "district": district,
+                    "count": len(options),
+                    "neighborhoods": options,
+                }
+            )
             return
         super().do_GET()
 
