@@ -219,6 +219,13 @@
       font-weight: 650;
     }
 
+    .company-title .version-note {
+      margin-top: 3px;
+      color: #64748b;
+      font-size: 12px;
+      font-weight: 650;
+    }
+
     .search {
       display: flex;
       flex-wrap: wrap;
@@ -1093,6 +1100,7 @@
           <div class="company-title">
             <h1>V&#304;ZYON TA&#350;INMAZ DE&#286;ERLEME VE DANI&#350;MANLIK A.&#350;.</h1>
             <p>Vizyon Asistan - CBS Veri A&#287;&#305;</p>
+            <p class="version-note">S&#252;r&#252;m: 16.07.2026 18:45</p>
           </div>
         </div>
         <div class="search">
@@ -1261,6 +1269,7 @@
           <div class="address-code-row">
             <input id="manualAdministrativeNeighborhood" list="idariMahalleList" placeholder="İdari mahalle">
             <input id="manualStreetName" placeholder="Cadde / Sokak">
+            <input id="manualSiteName" placeholder="Site / apartman adı">
             <input id="manualBlockNo" placeholder="Blok">
             <input id="manualBbNo" placeholder="BB no">
             <input id="manualBuildingId" placeholder="Bina / dış kapı no">
@@ -1697,6 +1706,62 @@
       }
     }
 
+    function splitCityDistrictLabel(value) {
+      const raw = String(value || "").replace(/\s+/g, " ").trim();
+      const parts = raw.split("/").map(part => part.trim()).filter(Boolean);
+      return { city: parts[0] || "", district: parts[1] || "" };
+    }
+
+    function currentCityDistrictParts() {
+      const cityDistrict = document.getElementById("cityDistrictValue").textContent;
+      const title = document.getElementById("placeTitle").textContent;
+      const fromCard = splitCityDistrictLabel(cityDistrict);
+      if (fromCard.city && fromCard.district && !/TKGM|Koordinattan|bekleniyor/i.test(cityDistrict)) {
+        return fromCard;
+      }
+      return splitCityDistrictLabel(title);
+    }
+
+    function titleCaseTr(value) {
+      return String(value || "")
+        .toLocaleLowerCase("tr-TR")
+        .replace(/(^|\s|\/|-)\S/g, letter => letter.toLocaleUpperCase("tr-TR"));
+    }
+
+    async function loadAdministrativeNeighborhoods(city, district, preferred = "") {
+      const list = document.getElementById("idariMahalleList");
+      if (!list || !city || !district) return [];
+      try {
+        const response = await fetch(`/api/admin-neighborhoods?city=${encodeURIComponent(city)}&district=${encodeURIComponent(district)}`);
+        const payload = await response.json();
+        const rows = payload.neighborhoods || [];
+        list.innerHTML = "";
+        rows.forEach(row => addDatalistOption("idariMahalleList", row.name));
+        if (preferred) addDatalistOption("idariMahalleList", preferred);
+        return rows;
+      } catch {
+        if (preferred) addDatalistOption("idariMahalleList", preferred);
+        return [];
+      }
+    }
+
+    function buildReadableAddress(packet) {
+      const cityDistrict = splitCityDistrictLabel(packet.cityDistrict);
+      const mahalle = cleanAddressPart(packet.administrativeNeighborhood);
+      const street = cleanAddressPart(packet.streetName);
+      const parts = [];
+      if (mahalle) parts.push(`${titleCaseTr(mahalle)} Mahallesi`);
+      if (street) parts.push(`${titleCaseTr(street)} Sokak`);
+      if (packet.siteName) parts.push(titleCaseTr(packet.siteName));
+      if (packet.blockNo) parts.push(`${String(packet.blockNo).toLocaleUpperCase("tr-TR")} blok`);
+      if (packet.outerDoor) parts.push(`No:${String(packet.outerDoor).toLocaleUpperCase("tr-TR")}`);
+      if (packet.innerDoor) parts.push(`D:${String(packet.innerDoor).toLocaleUpperCase("tr-TR")}`);
+      const suffix = cityDistrict.city && cityDistrict.district
+        ? `${cityDistrict.district.toLocaleUpperCase("tr-TR")}/${cityDistrict.city.toLocaleUpperCase("tr-TR")}`
+        : "";
+      return [parts.join(", "), suffix].filter(Boolean).join(" ");
+    }
+
     function prefillAddressCodeFields({ neighborhood, streetName, blockNo, bbNo, innerDoorNo } = {}) {
       const adminInput = document.getElementById("manualAdministrativeNeighborhood");
       const streetInput = document.getElementById("manualStreetName");
@@ -1704,10 +1769,13 @@
       const bbInput = document.getElementById("manualBbNo");
       const innerInput = document.getElementById("manualInnerDoorNo");
       const cleanNeighborhood = cleanAddressPart(neighborhood);
+      const cityDistrict = currentCityDistrictParts();
+      loadAdministrativeNeighborhoods(cityDistrict.city, cityDistrict.district, cleanNeighborhood);
       if (cleanNeighborhood) {
         addDatalistOption("idariMahalleList", cleanNeighborhood);
       }
-      if (cleanNeighborhood && !adminInput.value.trim()) {
+      const tapuOnlyNeighborhood = /\bş\.?$/i.test(cleanNeighborhood);
+      if (cleanNeighborhood && !tapuOnlyNeighborhood && !adminInput.value.trim()) {
         adminInput.value = cleanNeighborhood.toLocaleUpperCase("tr-TR");
       }
       if (streetName && !streetInput.value.trim()) {
@@ -1727,6 +1795,7 @@
     function getAddressCodePacket() {
       const outerDoor = document.getElementById("manualBuildingId").value.trim();
       const streetName = document.getElementById("manualStreetName").value.trim();
+      const siteName = document.getElementById("manualSiteName").value.trim();
       const blockNo = document.getElementById("manualBlockNo").value.trim();
       const bbNo = document.getElementById("manualBbNo").value.trim();
       const innerDoor = document.getElementById("manualInnerDoorNo").value.trim() || bbNo;
@@ -1736,6 +1805,7 @@
       return {
         administrativeNeighborhood,
         streetName,
+        siteName,
         outerDoor,
         blockNo,
         bbNo,
@@ -2450,6 +2520,7 @@
         `Tapu mahalle: ${packet.tapuNeighborhood}`,
         `İdari mahalle: ${packet.administrativeNeighborhood || "-"}`,
         `Cadde/Sokak: ${packet.streetName || "-"}`,
+        `Site/Apartman: ${packet.siteName || "-"}`,
         `Ada/Parsel: ${packet.parcel}`,
         `Blok: ${packet.blockNo || "-"}`,
         `Dış kapı: ${packet.outerDoor || "-"}`,
@@ -2457,6 +2528,7 @@
         `BB no: ${packet.bbNo || "-"}`,
         `Adres kodu/UAVT: ${packet.addressCode || "-"}`,
         `Bina kodu/kimlik no: ${packet.buildingCode || "-"}`,
+        `Adres: ${buildReadableAddress(packet) || "-"}`,
         `Koordinat: ${packet.coordinate ? `${packet.coordinate.lat}, ${packet.coordinate.lng}` : "-"}`
       ].join("\n");
       await navigator.clipboard.writeText(text);
@@ -2479,6 +2551,7 @@
         [
           packet.administrativeNeighborhood ? `İdari mahalle: ${packet.administrativeNeighborhood}` : "",
           packet.streetName ? `Sokak: ${packet.streetName}` : "",
+          packet.siteName ? `Site/Apartman: ${packet.siteName}` : "",
           packet.blockNo ? `Blok: ${packet.blockNo}` : "",
           `Dış kapı: ${packet.outerDoor}`,
           packet.innerDoor ? `İç kapı: ${packet.innerDoor}` : "",
@@ -2500,6 +2573,8 @@
             inner_door_no: packet.innerDoor,
             bb_no: packet.bbNo,
             block_no: packet.blockNo,
+            site_name: packet.siteName,
+            formatted_address: buildReadableAddress(packet),
             administrative_neighborhood: packet.administrativeNeighborhood,
             street_name: packet.streetName,
             address_code: packet.addressCode,
@@ -2538,6 +2613,11 @@
 
     ["citySelect", "districtSelect", "neighborhoodSelect", "tkgmUnitInput", "blockInput", "parcelInput", "bbInput"]
       .forEach(id => document.getElementById(id).addEventListener("input", syncRequestLine));
+
+    document.getElementById("manualAdministrativeNeighborhood").addEventListener("focus", () => {
+      const cityDistrict = currentCityDistrictParts();
+      loadAdministrativeNeighborhoods(cityDistrict.city, cityDistrict.district, document.getElementById("neighborhoodValue").textContent);
+    });
 
     syncRequestLine();
 
