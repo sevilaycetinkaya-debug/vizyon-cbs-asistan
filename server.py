@@ -74,9 +74,36 @@ def quick_location(path, params=None):
 
 
 def quick_rows(payload, plural_key):
+    def find_list(value):
+        if isinstance(value, list):
+            return value
+        if isinstance(value, dict):
+            preferred = (
+                plural_key,
+                "items",
+                "data",
+                "results",
+                "result",
+                "list",
+                "rows",
+                "values",
+            )
+            for key in preferred:
+                rows = value.get(key)
+                if isinstance(rows, list):
+                    return rows
+                nested = find_list(rows)
+                if nested:
+                    return nested
+            for rows in value.values():
+                nested = find_list(rows)
+                if nested:
+                    return nested
+        return []
+
     if isinstance(payload, dict):
-        rows = payload.get(plural_key) or payload.get("items") or payload.get("data") or payload.get("results")
-        if isinstance(rows, list):
+        rows = find_list(payload)
+        if rows:
             return rows
     return payload if isinstance(payload, list) else []
 
@@ -107,6 +134,21 @@ def norm_text(value):
     return re.sub(r"[^a-z0-9]+", " ", text.lower()).strip()
 
 
+def location_match(row_value, query_value):
+    row_norm = norm_text(row_value)
+    query_norm = norm_text(query_value)
+    if not query_norm:
+        return True
+    if row_norm == query_norm:
+        return True
+    row_flat = row_norm.replace(" ", "")
+    query_flat = query_norm.replace(" ", "")
+    if row_flat and query_flat and row_flat == query_flat:
+        return True
+    # Tapu/rapor metinlerinde "Darıca Ş.", "İlçe merkezi" gibi ekler gelebiliyor.
+    return bool(row_flat and query_flat and (row_flat in query_flat or query_flat in row_flat))
+
+
 def load_admin_neighborhoods():
     global _ADMIN_NEIGHBORHOOD_CACHE
     if _ADMIN_NEIGHBORHOOD_CACHE is not None:
@@ -130,14 +172,12 @@ def load_admin_neighborhoods():
 
 
 def admin_neighborhood_options(city, district):
-    city_norm = norm_text(city)
-    district_norm = norm_text(district)
     options = []
     seen = set()
     for row in load_admin_neighborhoods():
-        if city_norm and norm_text(row.get("il")) != city_norm:
+        if city and not location_match(row.get("il"), city):
             continue
-        if district_norm and norm_text(row.get("ilce")) != district_norm:
+        if district and not location_match(row.get("ilce"), district):
             continue
         name = (row.get("mahalle") or "").strip()
         if not name:
@@ -162,7 +202,29 @@ def admin_neighborhood_options(city, district):
 def item_label(item):
     if not isinstance(item, dict):
         return str(item or "")
-    for key in ("name", "label", "text", "value", "title", "description", "doorNo", "spaceNo"):
+    for key in (
+        "name",
+        "label",
+        "text",
+        "value",
+        "title",
+        "description",
+        "adi",
+        "ad",
+        "mahalleAdi",
+        "caddeSokakAdi",
+        "sokakAdi",
+        "kapiNo",
+        "disKapiNo",
+        "icKapiNo",
+        "doorNo",
+        "outerDoorNo",
+        "innerDoorNo",
+        "spaceNo",
+        "binaNo",
+        "binaKodu",
+        "buildingCode",
+    ):
         if item.get(key):
             return str(item.get(key))
     return str(item)
@@ -199,7 +261,28 @@ def pick_by_name(rows, wanted):
 def row_id(row):
     if not isinstance(row, dict):
         return ""
-    for key in ("id", "value", "code", "buildingId", "neighbourhoodId", "streetId"):
+    for key in (
+        "id",
+        "value",
+        "code",
+        "addressCode",
+        "adresKodu",
+        "uavt",
+        "uavtCode",
+        "buildingId",
+        "buildingCode",
+        "buildingIdentityNo",
+        "binaKodu",
+        "binaNo",
+        "neighbourhoodId",
+        "neighborhoodId",
+        "mahalleId",
+        "streetId",
+        "caddeSokakId",
+        "doorId",
+        "outerDoorId",
+        "innerDoorId",
+    ):
         if row.get(key) not in (None, ""):
             return row.get(key)
     return ""
@@ -603,7 +686,10 @@ AFAD_REFERENCE_POINTS = [
     {"lat": 40.216032, "lng": 28.979374, "pga_g": 0.388, "source": "AFAD TDTH manuel dogrulama"},
 ]
 
-AFAD_GRID_CSV = DATA / "afad_pga_akbank_grid.csv"
+AFAD_GRID_PATHS = (
+    DATA / "afad_pga_akbank_grid.csv",
+    ROOT / "afad_pga_akbank_grid.csv",
+)
 _AFAD_GRID = None
 
 
@@ -615,8 +701,12 @@ def load_afad_grid():
     points = {}
     lngs = set()
     lats = set()
-    if AFAD_GRID_CSV.exists():
-        with AFAD_GRID_CSV.open("r", encoding="utf-8", newline="") as handle:
+    source = ""
+    for grid_path in AFAD_GRID_PATHS:
+        if not grid_path.exists():
+            continue
+        source = str(grid_path)
+        with grid_path.open("r", encoding="utf-8-sig", newline="") as handle:
             for row in csv.DictReader(handle):
                 try:
                     lng = round(float(row["lng"]), 6)
@@ -627,8 +717,10 @@ def load_afad_grid():
                 points[(lng, lat)] = pga
                 lngs.add(lng)
                 lats.add(lat)
+        if points:
+            break
 
-    _AFAD_GRID = {"points": points, "lngs": sorted(lngs), "lats": sorted(lats)}
+    _AFAD_GRID = {"points": points, "lngs": sorted(lngs), "lats": sorted(lats), "source": source}
     return _AFAD_GRID
 
 
