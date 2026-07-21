@@ -655,6 +655,58 @@ def parcel_to_kml(parcel, lat=None, lng=None):
 """
 
 
+BEPTR_API_BASE = "https://beptr.csb.gov.tr/bep-api/api"
+
+
+def read_beptr_ekb(query_text):
+    """BEP-TR acik EKB sorgusu: bina kodu veya UAVT adres kodu ile calisir."""
+    url = f"{BEPTR_API_BASE}/projectManagement/QueryProject?queryText={urllib.parse.quote(str(query_text))}"
+    data = get_json(url, timeout=25)
+    if not isinstance(data, dict):
+        raise ValueError("BEP-TR cevabi beklenen formatta degil")
+    project_id = data.get("projectId") or 0
+    old_project_id = data.get("oldProjectId") or 0
+    found = bool(project_id or old_project_id)
+    return {
+        "status": "ok",
+        "source": "BEP-TR EKB sorgu (beptr.csb.gov.tr)",
+        "query": str(query_text),
+        "found": found,
+        "kod": data.get("kod"),
+        "aciklama": data.get("aciklama") or "",
+        "project_id": project_id,
+        "old_project_id": old_project_id,
+        "document_no": data.get("documentNo") or data.get("oldDocumentNo") or "",
+        "document_end_date": data.get("documentEndDate") or "",
+        "total_class": data.get("totalClass") or "",
+        "co2_class": data.get("co2Class") or "",
+        "uavt_no": data.get("uavtNo") or "",
+        "building_name": data.get("buildingName") or "",
+        "building_address": data.get("buildingAddress") or "",
+        "ada_parsel": data.get("adaParsel") or "",
+        "typology": data.get("buildingTypologyName") or "",
+        "city": data.get("cityName") or "",
+        "town": data.get("townName") or "",
+        "total_area": data.get("totalArea") or "",
+        "project_state": data.get("projectStateName") or "",
+        "project_no": project_id or old_project_id,
+    }
+
+
+def read_beptr_ekb_pdf(project_id, old_project_id):
+    if old_project_id:
+        url = f"{BEPTR_API_BASE}/projectManagement/GetProjectOldEkbFile?id={int(old_project_id)}&isForInfo=true"
+    elif project_id:
+        url = f"{BEPTR_API_BASE}/projectManagement/GetProjectEkbFile?id={int(project_id)}&isForInfo=true"
+    else:
+        raise ValueError("EKB PDF icin projectId veya oldProjectId gerekli")
+    data = get_json(url, timeout=40)
+    file_b64 = (data or {}).get("file")
+    if not file_b64:
+        raise ValueError("BEP-TR EKB dosyasi bos dondu")
+    return base64.b64decode(file_b64), (data.get("fileName") or "ekb.pdf")
+
+
 def read_usgs_vs30(lat, lng):
     endpoint = "https://earthquake.usgs.gov/arcgis/rest/services/eq/vs30_slope/MapServer/identify"
     pad = 0.01
@@ -845,31 +897,61 @@ def parse_takbis_upload_text(text):
                 return match.group(1).strip()
         return ""
 
-    city = first_match([
-        r"\bil\s*(?:adı|adi)?\s*[:=-]?\s*([A-ZÇĞİÖŞÜ][A-ZÇĞİÖŞÜ\s]{1,40}?)(?=\s+(?:ilçe|ilce|mahalle|köy|koy|ada|parsel|pafta|mevkii|mevki)\b|$)",
-    ])
-    district = first_match([
-        r"\bilçe\s*(?:adı)?\s*[:=-]?\s*([A-ZÇĞİÖŞÜ][A-ZÇĞİÖŞÜ\s]{1,40}?)(?=\s+(?:mahalle|köy|koy|ada|parsel|pafta|mevkii|mevki)\b|$)",
-        r"\bilce\s*(?:adi)?\s*[:=-]?\s*([A-ZÇĞİÖŞÜ][A-ZÇĞİÖŞÜ\s]{1,40}?)(?=\s+(?:mahalle|koy|ada|parsel|pafta|mevkii|mevki)\b|$)",
-    ])
+    # TAKBIS tapu kayit bilgisi formati: "İl/İlçe: KOCAELİ/DARICA" tek satirda gelir.
+    city = ""
+    district = ""
+    il_ilce = re.search(
+        r"\bil\s*/\s*il[çc]e\s*(?:adı|adi)?\s*[:=-]?\s*([A-ZÇĞİÖŞÜ][A-ZÇĞİÖŞÜ\s]{0,30}?)\s*/\s*([A-ZÇĞİÖŞÜ][A-ZÇĞİÖŞÜ\s]{0,30}?)(?=\s+(?:kurum|mahalle|köy|koy|mevkii|mevki|cilt|ada|parsel|kayıt|kayit|zemin|taşınmaz|tasinmaz)\b|\s*$)",
+        normalized,
+        re.I,
+    )
+    if il_ilce:
+        city = il_ilce.group(1).strip()
+        district = il_ilce.group(2).strip()
+    if not city:
+        city = first_match([
+            r"\bil\s*(?:adı|adi)?\s*[:=-]?\s*([A-ZÇĞİÖŞÜ][A-ZÇĞİÖŞÜ\s]{1,40}?)(?=\s+(?:ilçe|ilce|mahalle|köy|koy|ada|parsel|pafta|mevkii|mevki)\b|$)",
+        ])
+    if not district:
+        district = first_match([
+            r"\bilçe\s*(?:adı)?\s*[:=-]?\s*([A-ZÇĞİÖŞÜ][A-ZÇĞİÖŞÜ\s]{1,40}?)(?=\s+(?:mahalle|köy|koy|ada|parsel|pafta|mevkii|mevki)\b|$)",
+            r"\bilce\s*(?:adi)?\s*[:=-]?\s*([A-ZÇĞİÖŞÜ][A-ZÇĞİÖŞÜ\s]{1,40}?)(?=\s+(?:mahalle|koy|ada|parsel|pafta|mevkii|mevki)\b|$)",
+        ])
     neighborhood = first_match([
         r"\bmahalle\s*(?:adı|adi)?\s*[:=-]?\s*([A-ZÇĞİÖŞÜ0-9][A-ZÇĞİÖŞÜ0-9\s\.\-]{1,60}?)(?=\s+(?:ada|parsel|pafta|mevkii|mevki|alan|yüz|yuz|nitelik|mülkiyet|mulkiyet)\b|$)",
         r"\bköy\s*(?:adı)?\s*[:=-]?\s*([A-ZÇĞİÖŞÜ0-9][A-ZÇĞİÖŞÜ0-9\s\.\-]{1,60}?)(?=\s+(?:ada|parsel|pafta|mevkii|mevki|alan|yüz|yuz|nitelik|mülkiyet|mulkiyet)\b|$)",
         r"\bkoy\s*(?:adi)?\s*[:=-]?\s*([A-ZÇĞİÖŞÜ0-9][A-ZÇĞİÖŞÜ0-9\s\.\-]{1,60}?)(?=\s+(?:ada|parsel|pafta|mevkii|mevki|alan|yuz|nitelik|mulkiyet)\b|$)",
     ])
 
-    ada = first_match([
-        r"\bada\s*(?:no|numarası|numarasi)?\s*[:=-]?\s*(\d+)",
-        r"(\d+)\s*ada\b",
-    ])
-    parsel = first_match([
-        r"\bparsel\s*(?:no|numarası|numarasi)?\s*[:=-]?\s*(\d+)",
-        r"(\d+)\s*parsel\b",
-    ])
+    # TAKBIS formati: "Ada/Parsel: 1147/7" — once bunu dene, yoksa ayrik kaliplara dus.
+    ada = ""
+    parsel = ""
+    ada_parsel = re.search(r"\bada\s*/\s*parsel\s*(?:no)?\s*[:=-]?\s*(\d+)\s*/\s*(\d+)", normalized, re.I)
+    if ada_parsel:
+        ada, parsel = ada_parsel.group(1), ada_parsel.group(2)
+    if not ada:
+        ada = first_match([
+            r"\bada\s*(?:no|numarası|numarasi)?\s*[:=-]?\s*(\d+)",
+            r"(\d+)\s*ada\b",
+        ])
+    if not parsel:
+        parsel = first_match([
+            r"\bparsel\s*(?:no|numarası|numarasi)?\s*[:=-]?\s*(\d+)",
+            r"(\d+)\s*parsel\b",
+        ])
 
-    if re.search(r"kat\s+irtifak", ascii_norm, re.I):
+    # "Zemin Tipi: KatMulkiyeti" alani en guvenilir kaynak; bitisik yazim da gelir.
+    zemin_tipi = first_match([r"zemin\s*tipi\s*[:=-]?\s*([A-Za-zÇĞİÖŞÜçğıöşü]+)"], source=normalized)
+    zemin_tipi_ascii = norm_text(zemin_tipi).replace(" ", "")
+    if "irtifak" in zemin_tipi_ascii:
         asset_type = "Kat İrtifak"
-    elif re.search(r"kat\s+mulkiyet", ascii_norm, re.I):
+    elif "mulkiyet" in zemin_tipi_ascii:
+        asset_type = "Kat Mülkiyet"
+    elif "anatasinmaz" in zemin_tipi_ascii or "arsa" in zemin_tipi_ascii or "arazi" in zemin_tipi_ascii:
+        asset_type = "Ana taşınmaz"
+    elif re.search(r"kat\s*irtifak", ascii_norm, re.I):
+        asset_type = "Kat İrtifak"
+    elif re.search(r"kat\s*mulkiyet", ascii_norm, re.I):
         asset_type = "Kat Mülkiyet"
     elif re.search(r"ana\s+tasinmaz", ascii_norm, re.I):
         asset_type = "Ana taşınmaz"
@@ -904,6 +986,129 @@ def parse_takbis_upload_text(text):
     }
 
 
+def parse_yapi_kayit_text(text):
+    """İmar Barışı / Yapı Kayıt Belgesi metninden alanları çıkarır.
+    3 belge türünü destekler: BB bazında, yapının tamamı, karma."""
+    compact = re.sub(r"\s+", "", text)
+
+    def val(patterns, flags=re.I):
+        for pattern in patterns:
+            match = re.search(pattern, text, flags)
+            if match:
+                return re.sub(r"\s+", " ", match.group(1)).strip()
+        return ""
+
+    def cval(patterns):
+        # PDF metninde kelime içi boşluk bozulmalarını aşmak için boşluksuz metinde arar.
+        for pattern in patterns:
+            match = re.search(pattern, compact, re.I)
+            if match:
+                return match.group(1)
+        return ""
+
+    def to_num(value):
+        raw = str(value or "").replace(".", "").replace(",", ".")
+        try:
+            return float(raw)
+        except ValueError:
+            return None
+
+    def fmt(value):
+        return ("%.2f" % value).replace(".", ",")
+
+    belge_no = val([r"Belge\s*No\s*:\s*([A-Z0-9]{5,})"])
+    basvuru = val([r"vuru\s*Numaras[^\d]{0,6}(\d{5,9})", r"Ba[şs\s]*vuru[^\d]{0,15}(\d{5,9})"])
+    barkod = ("CSB01000" + basvuru + "01") if basvuru else ""
+
+    nitelik_raw = val([r"Niteli[ğg]i\s*:\s*(KARMA[^\n(]*\([^)]*\)|[A-ZÇĞİÖŞÜ]+)"])
+    nitelik = "KARMA" if "karma" in norm_text(nitelik_raw) else nitelik_raw.strip()
+
+    kapsam_bolge = cval([r"Kapsam[ıi]:(.*?)verilmi[şs]tir"])
+    kap_norm = norm_text(kapsam_bolge)
+    if "bagimsizbolum" in kap_norm.replace(" ", ""):
+        kapsam, tur = "Bağımsız bölüm için verilmiştir", "bb"
+    elif "tamam" in kap_norm:
+        kapsam = "Yapının tamamı için verilmiştir"
+        tur = "karma" if nitelik == "KARMA" else "tamam"
+    else:
+        kapsam, tur = "", ""
+
+    toplam = cval([r"ToplamYap[ıi]Alan[ıi]:([\d.,]+)"])
+    bb_alan = cval([r"Ba[ğg][ıi]ms[ıi]zB[öo]l[üu]mAlan[ıi]:([\d.,]+)"])
+    konut_alan = cval([r"KonutAlan[ıi]?:([\d.,]+)"])
+    ticari_alan = cval([r"TicariAlan[ıi]?:([\d.,]+)"])
+    yapi_alani = toplam or bb_alan
+    if not yapi_alani and (konut_alan or ticari_alan):
+        total = (to_num(konut_alan) or 0) + (to_num(ticari_alan) or 0)
+        yapi_alani = fmt(total) if total else ""
+
+    return {
+        "belge_no": belge_no,
+        "basvuru_no": basvuru,
+        "barkod": barkod,
+        "tarih": val([r"Düzenleme\s*Tarihi\s*:\s*([\d.]{8,10})"]),
+        "nitelik": nitelik,
+        "kapsam": kapsam,
+        "tur": tur,
+        "il": val([r"İl\s*:\s*([A-ZÇĞİÖŞÜ]+)"]),
+        "ilce": val([r"İl[çc]e\s*:\s*([A-ZÇĞİÖŞÜ]+)"]),
+        "mahalle": val([r"Mahalle\s*:\s*([A-ZÇĞİÖŞÜ ]+?)(?=,|Cadde|$)"]),
+        "ada": val([r"Ada\s*:\s*(\d+)"]),
+        "parsel": val([r"Parsel\s*:\s*(\d+)"]),
+        "arsa_alani": cval([r"ArsaAlan[ıi]:([\d.,]+)"]),
+        "yapi_alani": yapi_alani,
+        "konut_alan": konut_alan,
+        "ticari_alan": ticari_alan,
+        "bb_no": cval([r"Ba[ğg][ıi]ms[ıi]zB[öo]l[üu]mNumaras[ıi]:(\d+)"]),
+        "konut_bb": cval([r"KonutBa[ğg][ıi]ms[ıi]zB[öo]l[üu]mSay[ıi]s[ıi]:(\d+)"]),
+        "ticari_bb": cval([r"TicariBa[ğg][ıi]ms[ıi]zB[öo]l[üu]mSay[ıi]s[ıi]:(\d+)"]),
+    }
+
+
+def read_qr_from_upload(raw_bytes, filename):
+    """PDF/görselden QR barkodunu okumayı dener (opencv varsa)."""
+    try:
+        import numpy as np
+        import cv2
+    except Exception:
+        return ""
+
+    images = []
+    lower = str(filename or "").lower()
+    if lower.endswith(".pdf") or raw_bytes[:5] == b"%PDF-":
+        try:
+            from pypdf import PdfReader
+            reader = PdfReader(io.BytesIO(raw_bytes))
+            xobjs = (reader.pages[0].get("/Resources") or {}).get("/XObject")
+            if xobjs:
+                xobjs = xobjs.get_object()
+                for name in xobjs:
+                    obj = xobjs[name].get_object()
+                    if obj.get("/Subtype") == "/Image":
+                        images.append(obj.get_data() if hasattr(obj, "get_data") else obj._data)
+        except Exception:
+            pass
+    else:
+        images.append(raw_bytes)
+
+    detector = cv2.QRCodeDetector()
+    for data in images:
+        try:
+            arr = np.frombuffer(data, dtype=np.uint8)
+            img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+            if img is None:
+                continue
+            text, _, _ = detector.detectAndDecode(img)
+            if not text:
+                big = cv2.resize(img, None, fx=4, fy=4, interpolation=cv2.INTER_CUBIC)
+                text, _, _ = detector.detectAndDecode(big)
+            if text and "barkod" in text.lower():
+                return text
+        except Exception:
+            continue
+    return ""
+
+
 class Handler(SimpleHTTPRequestHandler):
     def translate_path(self, path):
         parsed = urlparse(path)
@@ -912,6 +1117,9 @@ class Handler(SimpleHTTPRequestHandler):
             if ROOT_HTML.exists():
                 return str(ROOT_HTML)
             return str(OUTPUTS / "vizyon-cbs-prototip.html")
+        if clean_path in ("/asistan", "/asistan/"):
+            # Vizyon Asistani ana uygulamasi (CBS dahil tum sekmeler) tek linkten yayinlanir.
+            return str(OUTPUTS / "Vizyon_Asistani.html")
         root_candidate = ROOT / clean_path.lstrip("/")
         if root_candidate.exists():
             return str(root_candidate)
@@ -974,6 +1182,35 @@ class Handler(SimpleHTTPRequestHandler):
                 )
             except Exception as exc:
                 self.send_json({"status": "error", "message": str(exc)}, 502)
+            return
+        if parsed.path == "/api/ekb/query":
+            query = parse_qs(parsed.query)
+            code = (query.get("code") or [""])[0].strip()
+            if not code:
+                self.send_json({"status": "error", "message": "code parametresi zorunlu (bina kodu veya UAVT)"}, 400)
+                return
+            try:
+                payload = read_beptr_ekb(code)
+                append_jsonl("ekb-queries.jsonl", {**payload, "saved_at": time.time()})
+                self.send_json(payload)
+            except Exception as exc:
+                self.send_json({"status": "error", "message": f"BEP-TR EKB sorgusu basarisiz: {exc}"}, 502)
+            return
+        if parsed.path == "/api/ekb/pdf":
+            query = parse_qs(parsed.query)
+            try:
+                project_id = int((query.get("projectId") or ["0"])[0] or 0)
+                old_project_id = int((query.get("oldProjectId") or ["0"])[0] or 0)
+                raw, filename = read_beptr_ekb_pdf(project_id, old_project_id)
+                self.send_response(200)
+                self.send_header("Content-Type", "application/pdf")
+                self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+                self.send_header("Content-Length", str(len(raw)))
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(raw)
+            except Exception as exc:
+                self.send_json({"status": "error", "message": f"EKB PDF indirilemedi: {exc}"}, 502)
             return
         if parsed.path == "/api/tkgm/parcel-by-coords":
             query = parse_qs(parsed.query)
@@ -1251,6 +1488,34 @@ class Handler(SimpleHTTPRequestHandler):
             body["saved_at"] = time.strftime("%Y-%m-%dT%H:%M:%S%z")
             append_jsonl("soil-observations.jsonl", body)
             self.send_json({"status": "ok", "saved": body})
+            return
+
+        if parsed.path == "/api/evrak/read":
+            body = self.read_body_json()
+            try:
+                raw = base64.b64decode(body.get("content_base64") or "")
+                filename = body.get("filename") or ""
+                text = read_uploaded_text(filename, body.get("mime") or "", body.get("content_base64") or "")
+                parsed_fields = parse_yapi_kayit_text(text)
+                # Metinden barkod türetilemezse QR'dan oku
+                if not parsed_fields.get("barkod"):
+                    qr = read_qr_from_upload(raw, filename)
+                    if qr:
+                        m_b = re.search(r"barkod\s*:\s*([A-Z0-9]+)", qr, re.I)
+                        m_n = re.search(r"belgeno\s*:\s*([A-Z0-9]+)", qr, re.I)
+                        if m_b:
+                            parsed_fields["barkod"] = m_b.group(1)
+                        if m_n and not parsed_fields.get("belge_no"):
+                            parsed_fields["belge_no"] = m_n.group(1)
+                has_data = any(parsed_fields.get(k) for k in ("belge_no", "barkod", "ada", "arsa_alani"))
+                self.send_json({
+                    "status": "ok" if has_data else "empty",
+                    "source": "Vizyon Yapı Kayıt belge okuyucu",
+                    "parsed": parsed_fields,
+                    "message": "Yapı Kayıt Belgesi okundu." if has_data else "Belgeden bilgi okunamadı; taranmış görsel için PDF tercih edin.",
+                }, 200 if has_data else 422)
+            except Exception as exc:
+                self.send_json({"status": "error", "message": f"Belge okunamadı: {exc}", "parsed": {}}, 422)
             return
 
         if parsed.path == "/api/takbis/parse":

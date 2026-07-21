@@ -1,0 +1,3312 @@
+﻿<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Vizyon Asistan - CBS Veri A&#287;&#305;</title>
+  <link rel="preconnect" href="https://unpkg.com">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    :root {
+      --navy: #102033;
+      --navy-2: #172b43;
+      --mint: #15a675;
+      --aqua: #1a8ca5;
+      --amber: #ca7b11;
+      --paper: #f7f8f5;
+      --ink: #182230;
+      --soft: #e4e9e5;
+      --muted: #64748b;
+      --white: #ffffff;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--paper);
+      font: 14px/1.45 "Segoe UI", Inter, Arial, sans-serif;
+      overflow-y: hidden;
+      overflow-x: hidden;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      height: 100vh;
+    }
+
+    .rail {
+      display: none;
+      /*
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 18px;
+      padding: 18px 10px;
+      color: #d7e2e5;
+      background: linear-gradient(180deg, var(--navy), #0d1826);
+      */
+    }
+
+    .mark {
+      width: 48px;
+      height: 48px;
+      display: grid;
+      place-items: center;
+      color: white;
+      border: 2px solid rgba(255,255,255,.18);
+      border-radius: 16px;
+      background: linear-gradient(140deg, #b73540, #0f9d6f);
+      font-family: Georgia, serif;
+      font-size: 24px;
+      font-weight: 700;
+    }
+
+    .mark img {
+      width: 34px;
+      height: 34px;
+      object-fit: contain;
+      filter: drop-shadow(0 1px 2px rgba(0,0,0,.18));
+    }
+
+    .rail-item {
+      width: 54px;
+      min-height: 54px;
+      display: grid;
+      place-items: center;
+      gap: 3px;
+      color: #b8c7cf;
+      border-radius: 16px;
+      font-size: 11px;
+      text-align: center;
+    }
+
+    .rail-item strong {
+      display: block;
+      color: white;
+      font-size: 20px;
+      line-height: 1;
+    }
+
+    .rail-item.active {
+      color: white;
+      background: rgba(255,255,255,.12);
+    }
+
+    .workspace {
+      min-width: 0;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) minmax(280px, 42vh);
+      height: 100vh;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+      gap: 22px;
+      align-items: center;
+      padding: 15px 20px 17px;
+      background: white;
+      border-bottom: 1px solid var(--soft);
+      box-shadow: inset 0 -3px 0 #d71920;
+    }
+
+    .product-brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-width: 0;
+    }
+
+    .brand-lockup {
+      width: 270px;
+      height: 96px;
+      flex: 0 0 270px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      color: #111827;
+    }
+
+    .brand-logo-img {
+      display: block;
+      width: 250px;
+      height: 88px;
+      object-fit: contain;
+      object-position: left center;
+    }
+
+    .brand-text-only {
+      display: none;
+      width: 270px;
+      color: #111827;
+      line-height: 1;
+    }
+
+    .brand-symbol {
+      position: relative;
+      width: 66px;
+      height: 66px;
+      flex: 0 0 66px;
+    }
+
+    .brand-symbol::before,
+    .brand-symbol::after {
+      content: "";
+      position: absolute;
+      left: 14px;
+      width: 34px;
+      height: 34px;
+      border-left: 11px solid #111827;
+      border-bottom: 11px solid #111827;
+      transform: rotate(-45deg);
+    }
+
+    .brand-symbol::before { top: 4px; }
+    .brand-symbol::after { top: 24px; }
+
+    .brand-word strong {
+      display: block;
+      font-size: 48px;
+      font-weight: 950;
+      text-transform: uppercase;
+      letter-spacing: .02em;
+      line-height: .9;
+    }
+
+    .brand-word span {
+      display: block;
+      margin-top: 8px;
+      font-size: 16px;
+      font-weight: 800;
+      text-transform: lowercase;
+      line-height: 1;
+    }
+
+    .brand-year {
+      display: inline-block;
+      margin-left: 10px;
+      padding: 1px 8px 2px;
+      color: white;
+      background: #111827;
+      font-size: 12px;
+      font-weight: 900;
+      vertical-align: middle;
+    }
+
+    .company-title {
+      padding-left: 14px;
+      border-left: 1px solid #d1d5db;
+      min-width: 0;
+    }
+
+    .company-title h1 {
+      margin: 0;
+      color: #111827;
+      font-size: 19px;
+      font-weight: 900;
+      letter-spacing: .02em;
+      text-transform: uppercase;
+      line-height: 1.25;
+    }
+
+    .company-title p {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 15px;
+      font-weight: 650;
+    }
+
+    .company-title .version-note {
+      margin-top: 3px;
+      color: #64748b;
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .search {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 7px;
+      align-items: center;
+      min-width: 0;
+    }
+
+    .quick-query {
+      display: grid;
+      grid-template-columns: minmax(180px, 1fr) 116px;
+      gap: 8px;
+      flex: 1 1 430px;
+      max-width: 560px;
+      min-width: 0;
+    }
+
+    .quick-query input {
+      height: 38px;
+      font-size: 12px;
+    }
+
+    .quick-query button {
+      height: 38px;
+      border: 1px solid #d8e2dc;
+      color: var(--navy-2);
+      background: #eef5f1;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 850;
+    }
+
+    .top-link {
+      display: grid;
+      place-items: center;
+      height: 38px;
+      min-width: 92px;
+      padding: 0 13px;
+      color: var(--navy-2);
+      background: #fff7ed;
+      border: 1px solid #fed7aa;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 850;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    select,
+    input,
+    button {
+      height: 38px;
+      border-radius: 10px;
+      font: inherit;
+    }
+
+    select,
+    input {
+      width: 100%;
+      padding: 0 12px;
+      color: var(--ink);
+      background: #f8faf9;
+      border: 1px solid var(--soft);
+      outline: none;
+    }
+
+    select:focus,
+    input:focus {
+      border-color: rgba(21,166,117,.65);
+      box-shadow: 0 0 0 4px rgba(21,166,117,.11);
+    }
+
+    button {
+      border: 0;
+      color: white;
+      background: var(--mint);
+      font-weight: 750;
+      cursor: pointer;
+    }
+
+    .file-button {
+      position: relative;
+      display: grid;
+      place-items: center;
+      height: 38px;
+      min-width: 112px;
+      padding: 0 12px;
+      color: var(--navy-2);
+      background: #eef5f1;
+      border: 1px solid #d8e2dc;
+      border-radius: 10px;
+      font-weight: 800;
+      cursor: pointer;
+      overflow: hidden;
+    }
+
+    .kml-hint {
+      display: flex;
+      align-items: center;
+      flex: 1 1 430px;
+      max-width: 560px;
+      min-height: 38px;
+      padding: 0 12px;
+      color: var(--muted);
+      background: #f8faf9;
+      border: 1px solid var(--soft);
+      border-radius: 10px;
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .file-button input {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .topbar .secondary-upload {
+      display: none;
+    }
+
+    .stage {
+      position: relative;
+      min-height: 0;
+      overflow: hidden;
+      background: #dce8e8;
+    }
+
+    #map {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+    }
+
+    .status-strip {
+      position: absolute;
+      z-index: 500;
+      left: 24px;
+      top: 22px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      padding: 10px 12px;
+      color: #0f172a;
+      background: rgba(255,255,255,.92);
+      border: 1px solid rgba(226,232,240,.9);
+      border-radius: 99px;
+      box-shadow: 0 12px 30px rgba(15,23,42,.12);
+      backdrop-filter: blur(10px);
+      font-size: 12px;
+    }
+
+    .pulse {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--mint);
+      box-shadow: 0 0 0 5px rgba(21,166,117,.13);
+    }
+
+    .quick-panel {
+      position: absolute;
+      z-index: 500;
+      right: 24px;
+      top: 22px;
+      width: 310px;
+      padding: 16px;
+      background: rgba(16,32,51,.92);
+      color: white;
+      border-radius: 22px;
+      box-shadow: 0 18px 45px rgba(15,23,42,.28);
+      backdrop-filter: blur(12px);
+    }
+
+    .locator-panel {
+      position: absolute;
+      z-index: 500;
+      left: 24px;
+      bottom: 22px;
+      width: 380px;
+      padding: 14px;
+      color: var(--ink);
+      background: rgba(255,255,255,.94);
+      border: 1px solid rgba(226,232,240,.95);
+      border-radius: 18px;
+      box-shadow: 0 18px 42px rgba(15,23,42,.16);
+      backdrop-filter: blur(12px);
+      display: none;
+    }
+
+    .locator-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: start;
+      margin-bottom: 11px;
+    }
+
+    .locator-head strong {
+      display: block;
+      font-size: 14px;
+    }
+
+    .locator-head span {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .mode-badge {
+      flex: 0 0 auto;
+      padding: 4px 8px;
+      color: var(--mint);
+      background: rgba(21,166,117,.1);
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 850;
+      text-transform: uppercase;
+    }
+
+    .source-list {
+      display: grid;
+      gap: 7px;
+    }
+
+    .parcel-runner {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 11px;
+      padding: 10px;
+      background: #f7faf8;
+      border: 1px solid #e0e8e3;
+      border-radius: 12px;
+    }
+
+    .runner-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 7px;
+    }
+
+    .runner-grid .full {
+      grid-column: 1 / -1;
+    }
+
+    .parcel-runner label {
+      display: grid;
+      gap: 4px;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 850;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+    }
+
+    .parcel-runner input,
+    .parcel-runner select {
+      height: 30px;
+      min-width: 0;
+      padding: 0 8px;
+      border-radius: 7px;
+      font-size: 12px;
+      background: white;
+    }
+
+    .runner-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 7px;
+    }
+
+    .runner-actions button,
+    .runner-actions a {
+      display: grid;
+      place-items: center;
+      height: 30px;
+      border-radius: 7px;
+      text-decoration: none;
+      font-size: 11px;
+      font-weight: 850;
+    }
+
+    .runner-actions a {
+      color: var(--navy-2);
+      background: white;
+      border: 1px solid #d8e2dc;
+    }
+
+    .request-line {
+      padding: 7px 8px;
+      color: #475569;
+      background: white;
+      border: 1px solid #edf2ef;
+      border-radius: 8px;
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      font-size: 10px;
+      word-break: break-word;
+    }
+
+    .source-step {
+      display: grid;
+      grid-template-columns: 22px 1fr auto;
+      gap: 9px;
+      align-items: center;
+      padding: 8px;
+      border: 1px solid #e7ece8;
+      border-radius: 10px;
+      background: #fbfcfb;
+    }
+
+    .source-step b {
+      display: grid;
+      place-items: center;
+      width: 22px;
+      height: 22px;
+      color: white;
+      background: var(--navy-2);
+      border-radius: 50%;
+      font-size: 11px;
+    }
+
+    .source-step strong {
+      display: block;
+      font-size: 12px;
+    }
+
+    .source-step span {
+      display: block;
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .state {
+      color: #64748b;
+      font-size: 10px;
+      font-weight: 850;
+      text-transform: uppercase;
+    }
+
+    .source-step.active {
+      border-color: rgba(21,166,117,.35);
+      background: rgba(21,166,117,.06);
+    }
+
+    .source-step.active b {
+      background: var(--mint);
+    }
+
+    .source-step.active .state {
+      color: var(--mint);
+    }
+
+    .quick-panel .label {
+      color: #9fb2c0;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .quick-panel h2 {
+      margin: 4px 0 2px;
+      font-size: 21px;
+    }
+
+    .quick-panel p {
+      margin: 0;
+      color: #cbd5e1;
+      font-size: 12px;
+    }
+
+    .coordinate {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 14px;
+      padding-top: 13px;
+      border-top: 1px solid rgba(255,255,255,.14);
+      color: #dbeafe;
+      font-size: 12px;
+    }
+
+    .quick-copy {
+      width: 100%;
+      height: 30px;
+      margin-top: 10px;
+      color: var(--navy-2);
+      background: #eef5f1;
+      border: 1px solid rgba(255,255,255,.2);
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 850;
+    }
+
+    .drawer {
+      display: grid;
+      grid-template-columns: 1.15fr .9fr .85fr .9fr .9fr;
+      gap: 12px;
+      padding: 12px 24px 14px;
+      background: #f7f8f5;
+      border-top: 1px solid var(--soft);
+      overflow: hidden;
+    }
+
+    .section-title {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 2px;
+    }
+
+    .section-title h2 {
+      margin: 0;
+      color: #111827;
+      font-size: 16px;
+    }
+
+    .section-title span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .sheet {
+      min-width: 0;
+      min-height: 0;
+      overflow: auto;
+      padding: 13px;
+      background: white;
+      border: 1px solid var(--soft);
+      border-radius: 6px;
+      box-shadow: 0 7px 24px rgba(15, 23, 42, .07);
+    }
+
+    .sheet-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .sheet-title h3 {
+      margin: 0;
+      font-size: 14px;
+    }
+
+    .tag {
+      padding: 3px 8px;
+      border-radius: 5px;
+      color: var(--aqua);
+      background: rgba(26,140,165,.09);
+      font-size: 10px;
+      font-weight: 850;
+      text-transform: uppercase;
+    }
+
+    .tag.amber {
+      color: var(--amber);
+      background: rgba(202,123,17,.11);
+    }
+
+    .facts {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 7px 12px;
+    }
+
+    .card-tabs {
+      display: flex;
+      gap: 18px;
+      margin: 0 0 10px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    .card-tabs button {
+      padding: 0 0 7px;
+      color: var(--muted);
+      background: transparent;
+      border: 0;
+      border-radius: 0;
+      height: auto;
+      font-size: 12px;
+      font-weight: 750;
+      cursor: pointer;
+    }
+
+    .card-tabs .active {
+      color: var(--mint);
+      border-bottom: 2px solid var(--mint);
+      margin-bottom: -1px;
+    }
+
+    .tab-panel[hidden] {
+      display: none;
+    }
+
+    .bb-table {
+      grid-column: 1 / -1;
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+    }
+
+    .bb-table th,
+    .bb-table td {
+      padding: 6px 5px;
+      border-bottom: 1px solid #e2e8f0;
+      text-align: left;
+    }
+
+    .bb-table th {
+      color: var(--muted);
+      font-size: 10px;
+      text-transform: uppercase;
+    }
+
+    .bb-table td:last-child,
+    .bb-table th:last-child {
+      text-align: right;
+    }
+
+    .fact span {
+      display: block;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+
+    .fact strong {
+      display: block;
+      margin-top: 1px;
+      font-size: 12px;
+      font-weight: 750;
+    }
+
+    .pending-value {
+      color: #64748b;
+      font-weight: 700;
+    }
+
+    .fact.wide { grid-column: 1 / -1; }
+
+    .metric {
+      display: flex;
+      align-items: baseline;
+      gap: 7px;
+      margin-top: 14px;
+    }
+
+    .metric strong {
+      color: #9a4f05;
+      font-size: 38px;
+      line-height: .85;
+    }
+
+    .metric span {
+      color: #9a4f05;
+      font-weight: 800;
+    }
+
+    .small {
+      margin-top: 9px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .soil {
+      display: grid;
+      grid-template-columns: 72px 1fr;
+      gap: 12px;
+      align-items: center;
+      margin-top: 12px;
+    }
+
+    .soil-code {
+      display: grid;
+      place-items: center;
+      height: 72px;
+      color: white;
+      background: #d84424;
+      border-radius: 18px 18px 18px 4px;
+      font-size: 31px;
+      font-weight: 900;
+    }
+
+    .ekb-action {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+      margin-top: 10px;
+      padding: 8px;
+      background: #f8fafc;
+      border: 1px dashed #cbd5e1;
+      border-radius: 8px;
+    }
+
+    .ekb-action button {
+      height: 32px;
+      padding: 0 10px;
+      background: var(--navy-2);
+      font-size: 11px;
+    }
+
+    .ekb-pdf-btn {
+      grid-column: 1 / -1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      height: 34px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #16a34a, #15803d);
+      color: #fff;
+      font-weight: 850;
+      font-size: 12px;
+      text-decoration: none;
+    }
+
+    .manual-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .address-code-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .address-field {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      gap: 4px;
+    }
+
+    .address-field span {
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 850;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    .manual-row input,
+    .address-code-row input,
+    .address-code-row select,
+    .address-field input,
+    .address-field select {
+      height: 32px;
+      min-width: 0;
+      border-radius: 8px;
+      font-size: 12px;
+      background: #fff;
+    }
+
+    .manual-row button {
+      height: 32px;
+      padding: 0 10px;
+      background: var(--mint);
+      font-size: 11px;
+    }
+
+    .address-code-actions {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .address-code-actions a,
+    .address-code-actions button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      height: 32px;
+      padding: 0 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      color: var(--navy);
+      background: #f8fafc;
+      font-size: 11px;
+      font-weight: 850;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .address-code-actions .ghost-btn {
+      grid-column: 1 / -1;
+      background: #eef2ff;
+      border-color: #c7d2fe;
+      color: #3730a3;
+    }
+
+    .vz-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 4000;
+      display: grid;
+      place-items: center;
+      background: rgba(15, 23, 42, .55);
+    }
+
+    .vz-modal[hidden] { display: none; }
+
+    .vz-modal-box {
+      position: relative;
+      width: min(560px, 92vw);
+      max-height: 88vh;
+      overflow: auto;
+      padding: 22px 24px;
+      background: white;
+      border-radius: 14px;
+      box-shadow: 0 24px 70px rgba(15, 23, 42, .4);
+    }
+
+    .vz-modal-box h3 { margin: 0 0 12px; font-size: 17px; }
+
+    .vz-modal-close {
+      position: absolute;
+      top: 10px;
+      right: 12px;
+      width: 30px;
+      height: 30px;
+      border: 0;
+      border-radius: 8px;
+      background: #f1f5f9;
+      font-size: 20px;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    .vz-steps {
+      margin: 0;
+      padding-left: 20px;
+      display: grid;
+      gap: 12px;
+      font-size: 13.5px;
+      line-height: 1.5;
+    }
+
+    .vz-steps kbd {
+      display: inline-block;
+      padding: 1px 6px;
+      border: 1px solid #cbd5e1;
+      border-bottom-width: 2px;
+      border-radius: 5px;
+      background: #f8fafc;
+      font-size: 12px;
+    }
+
+    .vz-drag-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+
+    .vz-bookmarklet {
+      display: inline-flex;
+      align-items: center;
+      padding: 10px 16px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #f97316, #ea580c);
+      color: white;
+      font-weight: 850;
+      font-size: 14px;
+      text-decoration: none;
+      cursor: grab;
+      box-shadow: 0 6px 16px rgba(234, 88, 12, .35);
+      user-select: none;
+    }
+
+    .vz-bookmarklet:active { cursor: grabbing; }
+
+    .vz-drag-hint { font-size: 11.5px; color: var(--muted); }
+
+    .soil-memory {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .soil-memory a,
+    .soil-memory button {
+      display: grid;
+      place-items: center;
+      height: 32px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-size: 11px;
+      font-weight: 850;
+    }
+
+    .soil-memory a {
+      color: var(--navy-2);
+      background: #f8fafc;
+      border: 1px solid #d8e2dc;
+    }
+
+    .external-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .external-actions a,
+    .external-actions button {
+      display: grid;
+      place-items: center;
+      min-height: 32px;
+      padding: 0 10px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-size: 11px;
+      font-weight: 850;
+    }
+
+    .external-actions a {
+      color: var(--navy-2);
+      background: #f8fafc;
+      border: 1px solid #d8e2dc;
+    }
+
+    .external-actions button {
+      color: white;
+      background: var(--navy-2);
+    }
+
+    .memory-status {
+      grid-column: 1 / -1;
+      color: #64748b;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 8px;
+      font-size: 11px;
+    }
+
+    .plan-preview {
+      grid-column: 1 / -1;
+      min-height: 54px;
+      padding: 9px;
+      color: #475569;
+      background:
+        linear-gradient(135deg, rgba(21,166,117,.18), transparent 35%),
+        linear-gradient(45deg, rgba(26,140,165,.14), transparent 42%),
+        #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 11px;
+    }
+
+    .plan-preview:empty {
+      display: none;
+    }
+
+    .legend-panel {
+      grid-column: 1 / -1;
+      padding: 9px;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+    }
+
+    .legend-panel h4 {
+      margin: 0 0 7px;
+      color: #111827;
+      font-size: 12px;
+    }
+
+    .legend-list {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px 10px;
+      font-size: 10px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      color: #334155;
+      min-width: 0;
+    }
+
+    .legend-swatch {
+      width: 12px;
+      height: 12px;
+      flex: 0 0 auto;
+      border: 1px solid rgba(15,23,42,.12);
+    }
+
+    .legend-link {
+      display: inline-grid;
+      place-items: center;
+      height: 30px;
+      padding: 0 10px;
+      color: var(--navy-2);
+      background: #f8fafc;
+      border: 1px solid #d8e2dc;
+      border-radius: 8px;
+      text-decoration: none;
+      font-size: 11px;
+      font-weight: 850;
+    }
+
+    .legend-note {
+      margin-top: 6px;
+      color: #64748b;
+      font-size: 10px;
+      line-height: 1.35;
+    }
+
+
+    .leaflet-control-attribution {
+      font-size: 10px !important;
+    }
+
+    .source-credit {
+      position: absolute;
+      right: 18px;
+      bottom: 12px;
+      z-index: 500;
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      padding: 6px 8px;
+      color: #475569;
+      background: rgba(255,255,255,.92);
+      border: 1px solid rgba(226,232,240,.9);
+      border-radius: 999px;
+      box-shadow: 0 10px 24px rgba(15,23,42,.12);
+      backdrop-filter: blur(10px);
+      font-size: 11px;
+    }
+
+    .source-credit span {
+      padding: 2px 7px;
+      border-radius: 999px;
+      background: #f1f5f9;
+      font-weight: 750;
+    }
+
+    .leaflet-control-zoom {
+      border: 0 !important;
+      box-shadow: 0 8px 24px rgba(15,23,42,.16) !important;
+    }
+
+    @media (max-width: 1180px) {
+      .rail { display: none; }
+      .topbar { grid-template-columns: 1fr; }
+      .quick-panel { display: none; }
+      .locator-panel { display: none; }
+      .drawer { gap: 8px; padding: 10px 12px 12px; }
+      .sheet { padding: 10px; }
+    }
+
+    @media (max-width: 820px) {
+      .workspace { grid-template-rows: auto 68vh auto; }
+      .search { grid-template-columns: 1fr; }
+      .drawer { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <nav class="rail" aria-label="Ana menu">
+      <div class="mark">V</div>
+      <div class="rail-item active"><strong>⌖</strong>Harita</div>
+      <div class="rail-item"><strong>▦</strong>Parsel</div>
+      <div class="rail-item"><strong>≋</strong>PGA</div>
+      <div class="rail-item"><strong>ZD</strong>Zemin</div>
+      <div class="rail-item"><strong>☷</strong>EKB</div>
+    </nav>
+
+    <section class="workspace">
+      <header class="topbar">
+        <div class="product-brand">
+          <div class="brand-lockup" aria-label="Vizyon degerleme 2002">
+            <img class="brand-logo-img" src="vizyon-logo-flat.png" alt="Vizyon de&#287;erleme 2002" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+            <div class="brand-word brand-text-only">
+              <strong>V&#304;ZYON</strong>
+              <span>de&#287;erleme <b class="brand-year">2002</b></span>
+            </div>
+          </div>
+          <div class="company-title">
+            <h1>V&#304;ZYON TA&#350;INMAZ DE&#286;ERLEME VE DANI&#350;MANLIK A.&#350;.</h1>
+            <p>Vizyon Asistan - CBS Veri A&#287;&#305;</p>
+            <p class="version-note">Sürüm: 20.07.2026-j — Robot tüm asistanlarda, Quick cevabı adım adım</p>
+          </div>
+        </div>
+        <div class="search">
+          <div class="quick-query">
+            <input id="quickTkgmQuery" placeholder="Koordinat veya il/ilçe/mahalle ada/parsel">
+            <button id="quickTkgmButton" type="button">Bul</button>
+          </div>
+          <label class="file-button">KML / KMZ
+            <input id="kmlFile" type="file" accept=".kml,.kmz,.xml">
+          </label>
+          <label class="file-button">TAKBİS Ekle
+            <input id="takbisFile" type="file" accept=".pdf,.png,.jpg,.jpeg,.txt">
+          </label>
+          <label class="file-button secondary-upload">ÇDP KML
+            <input id="cdpFile" type="file" accept=".kml,.kmz,.xml">
+          </label>
+          <label class="file-button secondary-upload">ORMAN KML
+            <input id="ogmFile" type="file" accept=".kml,.kmz,.xml">
+          </label>
+          <a id="topUcbpOpen" class="top-link secondary-upload" href="https://ucbp.tucbs.gov.tr/harita-goruntuleyici" target="_blank" rel="noreferrer">ÇDP'ye Git</a>
+          <a id="topOgmOpen" class="top-link secondary-upload" href="https://cbsportal.ogm.gov.tr/vatandas/" target="_blank" rel="noreferrer">OGM'ye Git</a>
+          <div class="kml-hint" id="kmlHint" hidden>KML/KMZ yükleyin; merkez koordinattan PGA ve zemin sınıfı hesap akışı başlar.</div>
+        </div>
+      </header>
+
+      <main class="stage">
+        <div id="map"></div>
+        <div class="status-strip">
+          <span class="pulse"></span>
+          <span id="statusText">Turkiye geneli sorguya hazir</span>
+        </div>
+        <div class="source-credit" aria-label="Veri kaynaklari">
+          <span>TKGM</span>
+          <span>AFAD</span>
+          <span>USGS</span>
+          <span>TUÇBS</span>
+          <span>OGM</span>
+          <span>MapTiler</span>
+        </div>
+        <aside class="quick-panel">
+          <div class="label">Secili tasinmaz</div>
+          <h2 id="placeTitle">Parsel secilmedi</h2>
+          <p id="placeSub">Ada/parsel, metin veya koordinat girerek baslayin</p>
+          <div class="coordinate">
+            <span id="coordText">Koordinat bekleniyor</span>
+            <span>WGS84</span>
+          </div>
+          <button id="copySelectedCoord" class="quick-copy" type="button">Koordinatı Kopyala</button>
+        </aside>
+        <section class="locator-panel" aria-label="Konum tespit motoru">
+          <div class="locator-head">
+            <div>
+              <strong>Konum Tespit Motoru</strong>
+              <span>Vizyon serveri resmi kaynakları sırayla dener, sonucu haritaya işler.</span>
+            </div>
+            <div id="modeBadge" class="mode-badge">Koordinat</div>
+          </div>
+          <div class="parcel-runner">
+            <div class="runner-grid">
+              <label>Il
+                <select id="citySelect"><option>Bursa</option><option>Ankara</option><option>Antalya</option><option>Malatya</option><option>Izmir</option></select>
+              </label>
+              <label>Ilce
+                <input id="districtSelect" value="" placeholder="Ilce">
+              </label>
+              <label class="full">Mahalle / Koy
+                <input id="neighborhoodSelect" value="" placeholder="Mahalle/Koy">
+              </label>
+              <label class="full">TKGM Mahalle/Koy ID
+                <input id="tkgmUnitInput" value="151767" inputmode="numeric">
+              </label>
+              <label>Ada
+                <input id="blockInput" value="2170" inputmode="numeric">
+              </label>
+              <label>Parsel
+                <input id="parcelInput" value="1" inputmode="numeric">
+              </label>
+              <label class="full">Bagimsiz Bolum No
+                <input id="bbInput" placeholder="Opsiyonel">
+              </label>
+            </div>
+            <div class="runner-actions">
+              <button id="parcelRun" type="button">Server'de calistir</button>
+              <a id="tkgmOpen" href="https://parselsorgu.tkgm.gov.tr/#ara/idari/151767/2170/1" target="_blank" rel="noreferrer">TKGM'de ac</a>
+            </div>
+            <div id="requestLine" class="request-line">POST /api/location/parcel {"tkgmId":"151767","ada":"2170","parsel":"1"}</div>
+          </div>
+          <div class="source-list">
+            <div id="stepTkgm" class="source-step active">
+              <b>1</b>
+              <div><strong>TKGM Parsel Sorgu</strong><span>Ada/parsel, koordinat veya harita tiklamasindan parsel geometrisi ve oznitelik.</span></div>
+              <div class="state">Ana</div>
+            </div>
+            <div id="stepKbs" class="source-step">
+              <b>2</b>
+              <div><strong>Bulut KBS Rehber</strong><span>Adres, sokak, kapi ve yer adi eslestirmesi; ters adres kontrolu.</span></div>
+              <div class="state">Destek</div>
+            </div>
+            <div id="stepEplan" class="source-step">
+              <b>3</b>
+              <div><strong>e-Plan Imar Durumu</strong><span>Secili parsel icin imar plan/imar durumu dogrulama adimi.</span></div>
+              <div class="state">Kontrol</div>
+            </div>
+            <div id="stepSays" class="source-step">
+              <b>4</b>
+              <div><strong>SAYS</strong><span>Yapi, adres ve bina iliskisi; UAVT ve bina kimlik no hattina hazirlik.</span></div>
+              <div class="state">Bagla</div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer class="drawer" aria-label="Sorgu veri ozeti">
+        <div class="section-title">
+          <h2>Sorgu Sonuçları</h2>
+          <span>Parsel, UAVT/EKB, AFAD PGA ve USGS Vs30 çıktıları</span>
+        </div>
+        <section class="sheet">
+          <div class="sheet-title">
+            <h3>Taşınmaz Bilgileri</h3>
+            <span class="tag">Parsel Sorgu</span>
+          </div>
+          <div class="card-tabs">
+            <button id="parcelGeneralTab" class="active" type="button">Genel</button>
+            <button id="parcelBbTab" type="button">Bağımsız Bölümler</button>
+          </div>
+          <div id="parcelGeneralPanel" class="facts tab-panel">
+            <div class="fact"><span>&#304;l / &#304;l&#231;e</span><strong id="cityDistrictValue" class="pending-value">TKGM bekleniyor</strong></div>
+            <div class="fact"><span>Mahalle</span><strong id="neighborhoodValue" class="pending-value">TKGM bekleniyor</strong></div>
+            <div class="fact"><span>Ada / Parsel</span><strong id="parcelValue" class="pending-value">Koordinattan okunacak</strong></div>
+            <div class="fact"><span>Alan</span><strong id="areaValue" class="pending-value">TKGM bekleniyor</strong></div>
+            <div class="fact"><span>Pafta</span><strong id="sheetValue" class="pending-value">TKGM bekleniyor</strong></div>
+            <div class="fact"><span>Mülkiyet</span><strong id="ownershipValue">Kat irtifak</strong></div>
+            <div class="fact"><span>BB Sayısı</span><strong id="bbCountValue" class="pending-value">TKGM bekleniyor</strong></div>
+            <div class="fact"><span>TKGM Durumu</span><strong id="statusValue" class="pending-value">TKGM bekleniyor</strong></div>
+            <div class="fact wide"><span>Nitelik / Kullanım</span><strong id="qualityValue" class="pending-value">Opsiyonel: TKGM/BB sonucu</strong></div>
+          </div>
+          <div id="parcelBbPanel" class="facts tab-panel" hidden>
+            <div class="fact"><span>BB Sayısı</span><strong id="bbCountTabValue" class="pending-value">TKGM bekleniyor</strong></div>
+            <div class="fact"><span>Sorgu Kaynağı</span><strong>TKGM Bağımsız Bölümler</strong></div>
+            <div class="fact wide"><span>Durum</span><strong id="bbListStatus" class="pending-value">Kat irtifakı/kat mülkiyeti varsa BB listesi okunacak</strong></div>
+            <table class="bb-table" aria-label="Bağımsız bölüm listesi">
+              <thead>
+                <tr><th>Blok</th><th>Bina Nitelik</th><th>BB Adet</th></tr>
+              </thead>
+              <tbody id="bbTableBody">
+                <tr><td colspan="3">TKGM Bina/BB listesi bekleniyor</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="sheet">
+          <div class="sheet-title">
+            <h3>Adres Bilgileri</h3>
+            <span class="tag">UAVT · Bina Kodu · EKB</span>
+          </div>
+          <div class="facts">
+            <div class="fact"><span>TAKBİS Türü</span><strong id="takbisAssetType">Ana taşınmaz / BB kontrolü</strong></div>
+            <div class="fact"><span>BB No</span><strong id="takbisBbNo" class="pending-value">TAKBİS bekleniyor</strong></div>
+            <div class="fact wide"><span>İl / İlçe</span><strong id="uavtCityDistrictValue">TKGM bekleniyor</strong></div>
+            <div class="fact wide"><span>TAKBİS</span><strong id="takbisBarcodeStatus" class="pending-value">Belge yüklenmedi</strong></div>
+            <div class="fact"><span>UAVT</span><strong id="uavtValue" class="pending-value">Adres sorgu</strong></div>
+            <div class="fact"><span>Bina Kodu / Kimlik No</span><strong id="buildingIdValue" class="pending-value">Adres kodu sonrası bekleniyor</strong></div>
+            <div class="fact wide"><span>EKB</span><strong id="ekbStatusValue" class="pending-value">UAVT / bina kodu gelince BEP-TR'den otomatik sorgulanır</strong></div>
+            <div class="fact wide"><span>Adres</span><strong id="addressValue">NVI/SAYS sonucu</strong></div>
+          </div>
+          <div class="address-code-row">
+            <label class="address-field"><span>İdari mah.</span><select id="manualAdministrativeNeighborhoodSelect" aria-label="İdari mahalle seç">
+              <option value="">İdari mahalle seç</option>
+            </select></label>
+            <label class="address-field"><span>Tapu mah.</span><input id="manualTapuNeighborhood" placeholder="Tapu mah."></label>
+            <input id="manualAdministrativeNeighborhood" list="idariMahalleList" type="hidden">
+            <label class="address-field"><span>Cadde / Sokak</span><input id="manualStreetName" placeholder="Cadde / Sokak"></label>
+            <label class="address-field"><span>Site adı</span><input id="manualSiteName" placeholder="Site / apartman adı"></label>
+            <label class="address-field"><span>Blok</span><input id="manualBlockNo" placeholder="Blok"></label>
+            <label class="address-field"><span>BB no</span><input id="manualBbNo" placeholder="BB no"></label>
+            <label class="address-field"><span>Dış kapı no</span><input id="manualBuildingId" placeholder="Bina / dış kapı no"></label>
+            <label class="address-field"><span>İç kapı no</span><input id="manualInnerDoorNo" placeholder="İç kapı no"></label>
+            <datalist id="idariMahalleList"></datalist>
+          </div>
+          <div class="manual-row">
+            <input id="manualAddressCode" placeholder="Adres kodu / UAVT sonucu">
+            <input id="manualBuildingCode" placeholder="Bina kodu / kimlik no">
+            <button id="saveBuildingId" type="button">Adres Kodu Bul</button>
+          </div>
+          <div class="address-code-actions">
+            <button id="quickAutoFill" type="button">1 · Quick'te Otomatik Doldur</button>
+            <button id="quickPasteCodes" type="button">2 · Quick sonucunu yapıştır</button>
+            <button id="quickSetupOpen" type="button" class="ghost-btn">⚙ Quick kurulumu (ilk kullanımda 1 kez)</button>
+            <a id="quickAddressOpen" href="https://quicksigorta.com/adres-kodu-sorgulama" target="_blank" rel="noopener">Quick'i boş aç</a>
+          </div>
+          <div class="ekb-action">
+            <div class="small">Akış: <b>1</b> Quick'te Otomatik Doldur → açılan sayfada yer imine tıkla → alanlar dolar → reCAPTCHA + Sorgula sende → kodlar otomatik kopyalanır → <b>2</b> Quick sonucunu yapıştır (EKB kendiliğinden sorgulanır). Yer imini kurmadıysan "⚙ Quick kurulumu"na tıkla.</div>
+            <button id="ekbOpen" type="button">EKB Sorgula</button>
+            <a id="ekbPdfLink" class="ekb-pdf-btn" href="#" download hidden>⬇ EKB PDF indir</a>
+          </div>
+
+          <div id="quickSetupModal" class="vz-modal" hidden>
+            <div class="vz-modal-box">
+              <button id="quickSetupClose" type="button" class="vz-modal-close" aria-label="Kapat">×</button>
+              <h3>Quick Otomatik Doldur — tek seferlik kurulum</h3>
+              <ol class="vz-steps">
+                <li><b>Yer imleri (favoriler) çubuğunu açın:</b> klavyeden <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd> (adres çubuğunun altında ince bir şerit belirir).</li>
+                <li><b>Aşağıdaki turuncu düğmeyi</b> fareyle tutup <b>o şeridin üzerine sürükleyip bırakın</b> (tıklamayın — sürükleyin):
+                  <div class="vz-drag-row">
+                    <a id="quickBookmarklet" href="#" class="vz-bookmarklet" draggable="true">🔖 Vizyon Quick Doldur</a>
+                    <span class="vz-drag-hint">⇧ buraya değil, yukarıdaki çubuğa sürükleyin</span>
+                  </div>
+                </li>
+                <li>Bitti! Bundan sonra <b>"1 · Quick'te Otomatik Doldur"</b> deyince açılan Quick sayfasında bu yer imine <b>bir kez tıklamanız</b> yeter; form kendiliğinden dolar.</li>
+              </ol>
+              <p class="small" style="margin:10px 0 0">Not: reCAPTCHA ("robot değilim") işaretini ve Sorgula'yı güvenlik gereği yine siz yaparsınız; sonuç çıkınca kodlar otomatik kopyalanır.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="sheet">
+          <div class="sheet-title">
+            <h3>Deprem İvmesi</h3>
+            <span class="tag amber">PGA 475</span>
+          </div>
+          <div class="metric"><strong id="pga">Grid</strong><span id="pgaUnit"></span></div>
+          <div class="small" id="afadStatusNote">AFAD TDTH PGA-475-50 resmi grid verisi bağlanacak; koordinat seçilince değer otomatik yazılacak.</div>
+          <div class="facts" style="margin-top:12px">
+            <div class="fact"><span>Periyot</span><strong>PGA</strong></div>
+            <div class="fact"><span>Senaryo</span><strong>DD-2</strong></div>
+          </div>
+          <div class="external-actions">
+            <a id="afadOpen" href="https://tdth.afad.gov.tr/TDTH/main.xhtml" target="_blank" rel="noreferrer">AFAD'a Git</a>
+            <button id="copyPgaValue" type="button">İvmeyi Kopyala</button>
+          </div>
+        </section>
+
+        <section class="sheet">
+          <div class="sheet-title">
+            <h3>Zemin Sınıfı</h3>
+            <span class="tag amber">USGS Vs30</span>
+          </div>
+          <div class="soil">
+            <div id="soilCode" class="soil-code">VS</div>
+            <div>
+              <strong id="soilTitle">Vs30 bekleniyor</strong>
+              <div class="small" id="soilNote">USGS Global Vs30 verisi okunur; TBDY-2018 eşiklerine göre ZA-ZE ön sınıfı üretilir.</div>
+            </div>
+          </div>
+          <div class="soil-memory">
+            <a id="usgsVs30Open" href="https://experience.arcgis.com/experience/5020939f877d480391965ec134e6a831" target="_blank" rel="noreferrer">USGS Haritaya Git</a>
+            <button id="saveSoil" type="button">Zemin kaydet</button>
+            <div id="soilMemoryStatus" class="memory-status">Zemin: koordinat secilince /api/soil/usgs-vs30 endpoint'i Vs30 okur ve TBDY sinifina cevirir.</div>
+          </div>
+        </section>
+
+        <section class="sheet" id="environmentSheet">
+          <div class="sheet-title">
+            <h3>ÇDP ve OGM Bilgileri</h3>
+            <span class="tag">UCBP</span>
+          </div>
+          <div class="facts">
+            <div class="fact wide"><span>Plan Katmanı</span><strong id="cdpLayerValue">Arazi Kullanımı / ÇDP</strong></div>
+            <div class="fact"><span>İl / İlçe</span><strong id="cdpCityValue" class="pending-value">UCBP bekleniyor</strong></div>
+            <div class="fact"><span>Ada / Parsel</span><strong id="cdpParcelValue" class="pending-value">KML bekleniyor</strong></div>
+            <div class="fact"><span>Alan</span><strong id="cdpAreaValue" class="pending-value">UCBP bekleniyor</strong></div>
+            <div class="fact"><span>Nitelik</span><strong id="cdpQualityValue" class="pending-value">UCBP bekleniyor</strong></div>
+            <div class="fact wide"><span>Mevkii</span><strong id="cdpMevkiiValue" class="pending-value">UCBP bekleniyor</strong></div>
+            <div class="fact"><span>OGM Arazi Örtüsü</span><strong id="ogmCoverValue" class="pending-value">ORMAN KML bekleniyor</strong></div>
+            <div class="fact"><span>OGM Kaynak</span><strong id="ogmSourceValue">cbsportal.ogm.gov.tr</strong></div>
+            <div class="legend-panel" aria-label="OGM arazi ortusu lejandi">
+              <h4>OGM Lejandı</h4>
+              <div class="legend-list">
+                <div class="legend-item"><span class="legend-swatch" style="background:#31b000"></span>Orman</div>
+                <div class="legend-item"><span class="legend-swatch" style="background:#9bd414"></span>Özel Orman ve Ağaçlandırma</div>
+                <div class="legend-item"><span class="legend-swatch" style="background:#ff6b6b"></span>Milli Park</div>
+                <div class="legend-item"><span class="legend-swatch" style="background:#f1ef3a"></span>Ağaçsız Orman Alanları</div>
+                <div class="legend-item"><span class="legend-swatch" style="background:#f6f3b0"></span>Orman Dışı Açıklıklar</div>
+                <div class="legend-item"><span class="legend-swatch" style="background:#b8f2e6"></span>İskan</div>
+                <div class="legend-item"><span class="legend-swatch" style="background:#a9dcff"></span>Su</div>
+              </div>
+            </div>
+            <div class="legend-panel" aria-label="CDP lejandi">
+              <h4>ÇDP Lejandı</h4>
+              <a class="legend-link" href="http://webdosya.csb.gov.tr/db/mpgm/editordosya/file/CDP_100000/balikesir_canakkle/LEJANT_16022015.jpg" target="_blank" rel="noreferrer">Bakanlık Lejandını Aç</a>
+              <div class="legend-note">Örnek: Balıkesir-Çanakkale 1/100.000 ÇDP lejandı. Diğer ÇDP katmanlarında plan adına göre Bakanlık lejandı ayrıca bağlanabilir.</div>
+            </div>
+            <div class="plan-preview" id="cdpStatus"></div>
+            <div class="plan-preview" id="ogmStatus"></div>
+          </div>
+          <div class="external-actions">
+            <a id="ucbpOpen" href="https://ucbp.tucbs.gov.tr/harita-goruntuleyici" target="_blank" rel="noreferrer">UCBP Haritaya Git</a>
+            <a id="ogmOpen" href="https://cbsportal.ogm.gov.tr/vatandas/" target="_blank" rel="noreferrer">OGM'ye Git</a>
+            <button id="copyCoordForUcbp" type="button">Koordinatı Kopyala</button>
+            <button id="downloadMapImage" type="button">Görsel İndir</button>
+          </div>
+        </section>
+      </footer>
+    </section>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script>
+    const turkeyCenter = {
+      lat: 39.0,
+      lng: 35.0
+    };
+
+    const map = L.map("map", { zoomControl: true }).setView([turkeyCenter.lat, turkeyCenter.lng], 6);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 20,
+      attribution: "&copy; OpenStreetMap"
+    }).addTo(map);
+
+    let marker = null;
+    let kmlLayer = null;
+    let cdpLayer = null;
+    let selectedCoordinate = null;
+    let currentKmlMetadata = {};
+
+    const cdpWmts = {
+      name: "Balıkesir-Çanakkale ÇDP",
+      url: "https://ucbp-api.tucbs.gov.tr/geoservice/haritagoruntuleyici/14505/wmts/61e2fa68-6a83-4483-bad6-737278d1f4f3/tile/1.0.0/CDP_CB_CDP/default/default028mm/{z}/{y}/{x}.png",
+      sourceUrl: "https://ucbp-api.tucbs.gov.tr/geoservice/haritagoruntuleyici/14505/wmts/61e2fa68-6a83-4483-bad6-737278d1f4f3/tile/1.0.0/CDP_CB_CDP/default/default028mm/10/387/590.png"
+    };
+
+    function cdpKatmaniniAc() {
+      if (!cdpLayer) {
+        cdpLayer = L.tileLayer(cdpWmts.url, {
+          minZoom: 8,
+          maxZoom: 18,
+          opacity: 0.72,
+          attribution: "TUÇBS ÇDP"
+        });
+      }
+
+      if (!map.hasLayer(cdpLayer)) cdpLayer.addTo(map);
+      setValue("cdpLayerValue", cdpWmts.name);
+      document.getElementById("cdpStatus").textContent =
+        "ÇDP WMTS aday katmanı bağlandı. UCBP oturumu/proxy izin verirse plan görüntüsü parsel altında görünür; 400 dönerse servis sadece UCBP oturumuyla çalışıyor demektir.";
+    }
+
+    function cdpKatmaniniKapat() {
+      if (cdpLayer && map.hasLayer(cdpLayer)) map.removeLayer(cdpLayer);
+    }
+
+    const turkiyeZeminGrid = [
+      {
+        lat_min: 40.21, lat_max: 40.22,
+        lng_min: 28.97, lng_max: 28.98,
+        vs30: 307,
+        pga_475: 0.388
+      },
+      {
+        lat_min: 40.21, lat_max: 40.23,
+        lng_min: 28.91, lng_max: 28.94,
+        vs30: 290,
+        pga_475: 0.40
+      }
+    ];
+
+    function getZeminSinifi(vs30) {
+      if (vs30 > 1500) return { sinif: "ZA", aciklama: "Sağlam, sert kaya", fs: 1.0 };
+      if (vs30 > 760) return { sinif: "ZB", aciklama: "Az ayrışmış, orta sağlam kaya", fs: 1.0 };
+      if (vs30 > 360) return { sinif: "ZC", aciklama: "Çok sıkı kum/çakıl veya sert kil", fs: 1.0 };
+      if (vs30 > 180) return { sinif: "ZD", aciklama: "Orta sıkı-sıkı kum/çakıl veya çok katı kil", fs: 1.1 };
+      return { sinif: "ZE", aciklama: "Gevşek kum/çakıl veya yumuşak-katı kil", fs: 1.2 };
+    }
+
+    function koordinattanZeminSorgula(lat, lng) {
+      const veri = turkiyeZeminGrid.find(grid =>
+        lat >= grid.lat_min && lat <= grid.lat_max &&
+        lng >= grid.lng_min && lng <= grid.lng_max
+      );
+
+      if (!veri) return null;
+      const zemin = getZeminSinifi(veri.vs30);
+      return {
+        vs30: veri.vs30,
+        zeminSinifi: zemin.sinif,
+        tanim: zemin.aciklama,
+        pga475: veri.pga_475
+      };
+    }
+
+    async function usgsVs30Oku(lat, lng) {
+      const endpoint = "https://earthquake.usgs.gov/arcgis/rest/services/eq/vs30_slope/MapServer/identify";
+      const pad = 0.01;
+      const params = new URLSearchParams({
+        f: "json",
+        geometry: `${lng},${lat}`,
+        geometryType: "esriGeometryPoint",
+        sr: "4326",
+        layers: "all",
+        tolerance: "3",
+        mapExtent: `${lng - pad},${lat - pad},${lng + pad},${lat + pad}`,
+        imageDisplay: "800,600,96",
+        returnGeometry: "false"
+      });
+      const response = await fetch(`${endpoint}?${params.toString()}`);
+      if (!response.ok) throw new Error("USGS Vs30 servisi cevap vermedi.");
+      const data = await response.json();
+      const value = data?.results?.[0]?.attributes?.["Classify.Pixel Value"];
+      const vs30 = Number(value);
+      if (!Number.isFinite(vs30)) throw new Error("USGS Vs30 değeri okunamadı.");
+      return vs30;
+    }
+
+    async function vizyonServerLookup(lat, lng) {
+      if (location.protocol === "file:") return null;
+
+      const response = await fetch("/api/lookup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lat: Number(lat),
+          lng: Number(lng),
+          metadata: currentKmlMetadata || {}
+        })
+      });
+
+      if (!response.ok) throw new Error("Vizyon server lookup cevap vermedi.");
+      return response.json();
+    }
+
+    async function vizyonSoilLookup(lat, lng) {
+      if (location.protocol === "file:") return null;
+      const response = await fetch(`/api/soil/usgs-vs30?lat=${Number(lat)}&lng=${Number(lng)}`);
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.message || "Vizyon soil endpoint cevap vermedi.");
+      return payload;
+    }
+
+    async function vizyonTkgmTextSearch(query) {
+      if (location.protocol === "file:") {
+        throw new Error("Metinle TKGM araması için sayfayı http://127.0.0.1:8787/ üzerinden açın.");
+      }
+
+      const response = await fetch("/api/tkgm/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query })
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.message || "TKGM metin sorgusu başarısız.");
+      return payload;
+    }
+
+    function geometryCenterFromParcel(parcel) {
+      const ring = parcel?.geometry?.coordinates?.[0];
+      if (!Array.isArray(ring) || !ring.length) return null;
+      const points = ring
+        .map(item => ({ lat: Number(item[1]), lng: Number(item[0]) }))
+        .filter(point => Number.isFinite(point.lat) && Number.isFinite(point.lng));
+      if (!points.length) return null;
+      return centerOf(points);
+    }
+
+    function applyTkgmParcel(parcel, options = {}) {
+      if (!parcel || parcel.status !== "ok") return null;
+      const summary = parcel.summary || {};
+      const props = parcel.properties || {};
+      const blocks = parcel.blocks || {};
+
+      setValue("cityDistrictValue", [summary.il, summary.ilce].filter(Boolean).join(" / "));
+      setValue("uavtCityDistrictValue", [summary.il, summary.ilce].filter(Boolean).join(" / "));
+      setValue("neighborhoodValue", summary.mahalle);
+      prefillAddressCodeFields({ neighborhood: summary.mahalle });
+      setValue("parcelValue", summary.ada && summary.parsel ? `${summary.ada}/${summary.parsel}` : "");
+      setValue("areaValue", summary.alan);
+      setValue("sheetValue", summary.pafta);
+      setValue("ownershipValue", summary.mulkiyet);
+      if (/kat\s+irtifak/i.test(summary.mulkiyet || "")) {
+        document.getElementById("takbisAssetType").textContent = "Kat İrtifak";
+      } else if (/kat\s+mülkiyet|kat\s+mulkiyet/i.test(summary.mulkiyet || "")) {
+        document.getElementById("takbisAssetType").textContent = "Kat Mülkiyet";
+      }
+      setValue("statusValue", summary.durum);
+      setValue("qualityValue", summary.nitelik);
+      const bulQuery = [
+        summary.il,
+        summary.ilce,
+        summary.mahalle,
+        summary.ada && summary.parsel ? `${summary.ada} ada ${summary.parsel} parsel` : ""
+      ].filter(Boolean).join(" ").trim();
+      if (bulQuery) document.getElementById("quickTkgmQuery").value = bulQuery;
+      document.getElementById("placeTitle").textContent =
+        [summary.il, summary.ilce].filter(Boolean).join(" / ") || "TKGM parsel";
+      document.getElementById("placeSub").textContent =
+        [summary.mahalle, summary.ada && summary.parsel ? `${summary.ada}/${summary.parsel}` : ""]
+          .filter(Boolean).join(" - ");
+
+      if (blocks.status === "ok" && Array.isArray(blocks.rows) && blocks.rows.length) {
+        bbListesiniYaz(blocks.rows);
+      } else if (blocks.total_bb != null) {
+        setValue("bbCountValue", String(blocks.total_bb));
+        setValue("bbCountTabValue", String(blocks.total_bb));
+      }
+
+      if (parcel.geometry?.type === "Polygon" && Array.isArray(parcel.geometry.coordinates?.[0])) {
+        if (kmlLayer) kmlLayer.remove();
+        const latLngs = parcel.geometry.coordinates[0].map(item => [item[1], item[0]]);
+        kmlLayer = L.polygon(latLngs, {
+          color: "#0f8fa8",
+          weight: 3,
+          fillColor: "#9dd9e4",
+          fillOpacity: .25
+        }).addTo(map);
+        map.fitBounds(kmlLayer.getBounds(), { padding: [40, 40] });
+      }
+
+      const parcelCenter = geometryCenterFromParcel(parcel);
+      if (parcelCenter && options.runAnalysis) {
+        update(parcelCenter.lat, parcelCenter.lng, "coord");
+      } else if (parcelCenter && !selectedCoordinate) {
+        selectedCoordinate = { lat: parcelCenter.lat, lng: parcelCenter.lng };
+        document.getElementById("coordText").textContent =
+          `${parcelCenter.lat.toFixed(6)}, ${parcelCenter.lng.toFixed(6)}`;
+        externalLinkleriGuncelle(parcelCenter.lat, parcelCenter.lng);
+      }
+
+      document.getElementById("requestLine").textContent =
+        `GET TKGM /parsel/${Number(selectedCoordinate?.lat || 0).toFixed(6)}/${Number(selectedCoordinate?.lng || 0).toFixed(6)}/`;
+      return parcelCenter;
+    }
+
+    async function zeminVePgaKartlariniGuncelle(lat, lng) {
+      const fallback = koordinattanZeminSorgula(lat, lng);
+      const latText = Number(lat).toFixed(6);
+      const lngText = Number(lng).toFixed(6);
+      let vs30Source = "USGS";
+      let sonuc = fallback;
+      let serverPga = null;
+
+      document.getElementById("soilTitle").textContent = "Vs30 hesaplanıyor...";
+      document.getElementById("soilNote").textContent =
+        `Koordinat ${latText}, ${lngText} için USGS Vs30 sorgusu çalışıyor.`;
+
+      try {
+        const apiResult = await vizyonServerLookup(lat, lng);
+        if (apiResult) {
+          applyTkgmParcel(apiResult.parcel);
+
+          if (apiResult.pga?.pga_g != null) {
+            const pga = Number(apiResult.pga.pga_g);
+            serverPga = pga;
+            document.getElementById("pga").textContent = pga.toFixed(3).replace(".", ",");
+            document.getElementById("pgaUnit").textContent = "g";
+            document.getElementById("afadStatusNote").textContent =
+              `AFAD TDTH PGA 475 değeri otomatik kayda işlendi. Kaynak: ${apiResult.pga.source || "AFAD TDTH"}.`;
+          } else {
+            document.getElementById("pga").textContent = "Grid";
+            document.getElementById("pgaUnit").textContent = "";
+            document.getElementById("afadStatusNote").textContent =
+              "AFAD TDTH PGA-475-50 resmi grid verisi bağlanacak; koordinat hazır, grid/interpolasyon servisi gelince değer otomatik yazılacak.";
+          }
+
+          if (apiResult.soil?.status === "ok") {
+            document.getElementById("soilCode").textContent = apiResult.soil.site_class;
+            document.getElementById("soilTitle").textContent =
+              `${apiResult.soil.site_class} - ${apiResult.soil.description}`;
+            document.getElementById("soilNote").textContent =
+              `Zemin sınıfı ${apiResult.soil.source} değerinden okunur. Vs30: ${apiResult.soil.vs30} m/s -> ${apiResult.soil.site_class}.`;
+            document.getElementById("soilMemoryStatus").textContent =
+              `Vizyon server /api/lookup -> USGS Vs30 ${apiResult.soil.vs30} -> ${apiResult.soil.site_class}`;
+          }
+
+          document.getElementById("statusText").textContent =
+            `Vizyon server sorgusu tamamlandı: ${apiResult.meta?.sources_called?.join(", ") || "kayıt hazır"}`;
+          if (apiResult.soil?.status === "ok") return;
+        }
+      } catch (error) {
+        document.getElementById("statusText").textContent =
+          `Vizyon server cevap vermedi; tarayıcı içi USGS yedeği deneniyor. ${error.message}`;
+      }
+
+      try {
+        const soil = await vizyonSoilLookup(Number(lat), Number(lng));
+        if (soil?.status === "ok") {
+          sonuc = {
+            vs30: soil.vs30,
+            zeminSinifi: soil.site_class,
+            tanim: soil.description,
+            pga475: fallback?.pga475
+          };
+          vs30Source = "Vizyon server USGS";
+        } else {
+          throw new Error(soil?.message || "Soil endpoint sonucu yok.");
+        }
+      } catch {
+        try {
+          const vs30 = await usgsVs30Oku(Number(lat), Number(lng));
+          const zemin = getZeminSinifi(vs30);
+          sonuc = {
+            vs30,
+            zeminSinifi: zemin.sinif,
+            tanim: zemin.aciklama,
+            pga475: fallback?.pga475
+          };
+        } catch {
+          vs30Source = "yerel önbellek";
+        }
+      }
+
+      if (!sonuc) {
+        document.getElementById("pga").textContent = "Grid";
+        document.getElementById("pgaUnit").textContent = "";
+        document.getElementById("afadStatusNote").textContent =
+          "AFAD TDTH PGA-475-50 resmi grid verisi bağlanacak; koordinat hazır, grid/interpolasyon servisi gelince değer otomatik yazılacak.";
+        document.getElementById("soilCode").textContent = "VS";
+        document.getElementById("soilTitle").textContent = "Zemin verisi bulunamadı";
+        document.getElementById("soilNote").textContent =
+          `Bu koordinat için yerel grid kaydı yok. GET /api/soil/usgs-vs30?lat=${latText}&lng=${lngText}`;
+        document.getElementById("soilMemoryStatus").textContent =
+          "Zemin: grid/veritabanı kaydı yoksa USGS Vs30 ve uzman doğrulaması gerekir.";
+        return;
+      }
+
+      const pgaValue = Number.isFinite(serverPga) ? serverPga : sonuc.pga475;
+      const hasPga = Number.isFinite(pgaValue);
+      document.getElementById("pga").textContent = hasPga
+        ? pgaValue.toFixed(3).replace(".", ",")
+        : "AFAD";
+      document.getElementById("pgaUnit").textContent = hasPga ? "g" : "";
+      document.getElementById("soilCode").textContent = sonuc.zeminSinifi;
+      document.getElementById("soilTitle").textContent = `${sonuc.zeminSinifi} - ${sonuc.tanim}`;
+      document.getElementById("soilNote").textContent =
+        `Zemin sınıfı ${vs30Source} Vs30 değerinden okunur. Vs30: ${sonuc.vs30} m/s -> ${sonuc.zeminSinifi}.`;
+      document.getElementById("soilMemoryStatus").textContent =
+        `USGS identify: vs30_slope/MapServer -> ${latText}, ${lngText} -> Vs30 ${sonuc.vs30} -> ${sonuc.zeminSinifi}`;
+    }
+
+    function externalLinkleriGuncelle(lat, lng) {
+      const latText = Number(lat).toFixed(6);
+      const lngText = Number(lng).toFixed(6);
+      const usgsBase = "https://experience.arcgis.com/experience/5020939f877d480391965ec134e6a831";
+      const usgsParams = new URLSearchParams({
+        center: `${lngText},${latText}`,
+        level: "16"
+      });
+
+      document.getElementById("usgsVs30Open").href = `${usgsBase}?${usgsParams.toString()}`;
+
+      const afadBase = "https://tdth.afad.gov.tr/TDTH/main.xhtml";
+      const afadParams = new URLSearchParams({
+        lat: latText,
+        lon: lngText,
+        lng: lngText
+      });
+      document.getElementById("afadOpen").href = `${afadBase}?${afadParams.toString()}`;
+
+      const ogmParams = new URLSearchParams({
+        center: `${lngText},${latText},4326`,
+        level: "17",
+        marker: `${lngText};${latText};4326;KML merkezi`
+      });
+      const ogmUrl = `https://cbsportal.ogm.gov.tr/vatandas/?${ogmParams.toString()}`;
+      document.getElementById("ogmOpen").href = ogmUrl;
+      document.getElementById("topOgmOpen").href = ogmUrl;
+      document.getElementById("topUcbpOpen").href =
+        `https://ucbp.tucbs.gov.tr/harita-goruntuleyici?lat=${latText}&lng=${lngText}`;
+    }
+
+    function setValue(id, value, fallback = "TKGM bekleniyor") {
+      const element = document.getElementById(id);
+      if (!element) return;
+      const clean = value && String(value).trim();
+      element.textContent = clean || fallback;
+      element.classList.toggle("pending-value", !clean);
+    }
+
+    function cleanAddressPart(value) {
+      return String(value || "")
+        .replace(/\s+/g, " ")
+        .replace(/\s+Mahallesi$/i, "")
+        .replace(/\s+Mah\.?$/i, "")
+        .trim();
+    }
+
+    function addDatalistOption(listId, value) {
+      const clean = cleanAddressPart(value);
+      if (!clean) return;
+      const list = document.getElementById(listId);
+      const optionValue = clean.toLocaleUpperCase("tr-TR");
+      const exists = Array.from(list.options).some(option => option.value === optionValue);
+      if (!exists) {
+        const option = document.createElement("option");
+        option.value = optionValue;
+        list.appendChild(option);
+      }
+    }
+
+    function splitCityDistrictLabel(value) {
+      const raw = String(value || "").replace(/\s+/g, " ").trim();
+      const parts = raw.split("/").map(part => part.trim()).filter(Boolean);
+      return { city: parts[0] || "", district: parts[1] || "" };
+    }
+
+    function currentCityDistrictParts() {
+      const cityDistrict = document.getElementById("cityDistrictValue").textContent;
+      const title = document.getElementById("placeTitle").textContent;
+      const fromCard = splitCityDistrictLabel(cityDistrict);
+      if (fromCard.city && fromCard.district && !/TKGM|Koordinattan|bekleniyor/i.test(cityDistrict)) {
+        return fromCard;
+      }
+      return splitCityDistrictLabel(title);
+    }
+
+    function titleCaseTr(value) {
+      return String(value || "")
+        .toLocaleLowerCase("tr-TR")
+        .replace(/(^|\s|\/|-)\S/g, letter => letter.toLocaleUpperCase("tr-TR"));
+    }
+
+    function normalizeTr(value) {
+      return String(value || "")
+        .replace(/İ/g, "I").replace(/ı/g, "i")
+        .replace(/Ç/g, "C").replace(/ç/g, "c")
+        .replace(/Ğ/g, "G").replace(/ğ/g, "g")
+        .replace(/Ö/g, "O").replace(/ö/g, "o")
+        .replace(/Ş/g, "S").replace(/ş/g, "s")
+        .replace(/Ü/g, "U").replace(/ü/g, "u")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim();
+    }
+
+    async function loadAdministrativeNeighborhoods(city, district, preferred = "") {
+      const list = document.getElementById("idariMahalleList");
+      const select = document.getElementById("manualAdministrativeNeighborhoodSelect");
+      if (!list || !city || !district) return [];
+      if (select) select.innerHTML = `<option value="">İdari mahalle seç</option>`;
+      try {
+        const response = await fetch(`/api/admin-neighborhoods?city=${encodeURIComponent(city)}&district=${encodeURIComponent(district)}`);
+        const payload = await response.json();
+        const rows = payload.neighborhoods || [];
+        list.innerHTML = "";
+        let matchedPreferred = "";
+        const normalizedPreferred = normalizeTr(preferred);
+        rows.forEach(row => {
+          addDatalistOption("idariMahalleList", row.name);
+          if (select) {
+            const option = document.createElement("option");
+            option.value = row.name;
+            option.textContent = titleCaseTr(row.name);
+            select.appendChild(option);
+          }
+          if (preferred && normalizeTr(row.name) === normalizedPreferred) {
+            matchedPreferred = row.name;
+          }
+        });
+        if (preferred) addDatalistOption("idariMahalleList", preferred);
+        if (select && matchedPreferred) {
+          select.value = matchedPreferred;
+          const adminInput = document.getElementById("manualAdministrativeNeighborhood");
+          if (adminInput && !adminInput.value.trim()) adminInput.value = matchedPreferred;
+        }
+        return rows;
+      } catch {
+        if (preferred) addDatalistOption("idariMahalleList", preferred);
+        return [];
+      }
+    }
+
+    function buildReadableAddress(packet) {
+      // NVI/SAYS formati: "Pirireis Mahallesi, Behlül Sokak, Palmiye Elite Villaları,
+      // C blok, No:3C, D:2 Darıca/KOCAELİ"
+      const cityDistrict = splitCityDistrictLabel(packet.cityDistrict);
+      const mahalle = cleanAddressPart(packet.administrativeNeighborhood);
+      const street = cleanAddressPart(packet.streetName);
+      const parts = [];
+      if (mahalle) parts.push(`${titleCaseTr(mahalle)} Mahallesi`);
+      if (street) {
+        // "AA Caddesi", "X Bulvarı", "Y Sk." gibi tur iceren girislere "Sokak" eklenmez.
+        const turIceriyor = /cadde|caddesi|cad\.?|cd\.?|sokak|soka(ğ|g)ı|sk\.?|bulvar|bulvarı|blv\.?|bulv\.?|yolu|meydan|meydanı/i
+          .test(street.toLocaleLowerCase("tr-TR"));
+        parts.push(turIceriyor ? titleCaseTr(street) : `${titleCaseTr(street)} Sokak`);
+      }
+      if (packet.siteName) parts.push(titleCaseTr(packet.siteName));
+      if (packet.blockNo) parts.push(`${String(packet.blockNo).toLocaleUpperCase("tr-TR")} blok`);
+      if (packet.outerDoor) parts.push(`No:${String(packet.outerDoor).replace(/\s+/g, "").toLocaleUpperCase("tr-TR")}`);
+      if (packet.innerDoor) parts.push(`D:${String(packet.innerDoor).replace(/\s+/g, "").toLocaleUpperCase("tr-TR")}`);
+      const suffix = cityDistrict.city && cityDistrict.district
+        ? `${titleCaseTr(cityDistrict.district)}/${cityDistrict.city.toLocaleUpperCase("tr-TR")}`
+        : "";
+      return [parts.join(", "), suffix].filter(Boolean).join(" ");
+    }
+
+    function prefillAddressCodeFields({ neighborhood, streetName, blockNo, bbNo, innerDoorNo } = {}) {
+      const adminInput = document.getElementById("manualAdministrativeNeighborhood");
+      const adminSelect = document.getElementById("manualAdministrativeNeighborhoodSelect");
+      const tapuInput = document.getElementById("manualTapuNeighborhood");
+      const streetInput = document.getElementById("manualStreetName");
+      const blockInput = document.getElementById("manualBlockNo");
+      const bbInput = document.getElementById("manualBbNo");
+      const innerInput = document.getElementById("manualInnerDoorNo");
+      const cleanNeighborhood = cleanAddressPart(neighborhood);
+      const cityDistrict = currentCityDistrictParts();
+      const cityDistrictText = [cityDistrict.city, cityDistrict.district].filter(Boolean).join(" / ");
+      if (cityDistrictText) setValue("uavtCityDistrictValue", cityDistrictText);
+      const tapuOnlyNeighborhood = /\bş\.?$/i.test(cleanNeighborhood);
+      loadAdministrativeNeighborhoods(cityDistrict.city, cityDistrict.district, tapuOnlyNeighborhood ? "" : cleanNeighborhood);
+      if (cleanNeighborhood && tapuInput && !tapuInput.value.trim()) {
+        tapuInput.value = cleanNeighborhood;
+      }
+      if (cleanNeighborhood && !tapuOnlyNeighborhood) {
+        addDatalistOption("idariMahalleList", cleanNeighborhood);
+      }
+      if (cleanNeighborhood && !tapuOnlyNeighborhood && !adminInput.value.trim()) {
+        adminInput.value = cleanNeighborhood.toLocaleUpperCase("tr-TR");
+        if (adminSelect) adminSelect.value = cleanNeighborhood.toLocaleUpperCase("tr-TR");
+      }
+      if (streetName && !streetInput.value.trim()) {
+        streetInput.value = cleanAddressPart(streetName).toLocaleUpperCase("tr-TR");
+      }
+      if (blockNo && !blockInput.value.trim()) {
+        blockInput.value = String(blockNo).replace(/\s+/g, "").toLocaleUpperCase("tr-TR");
+      }
+      if (bbNo && !bbInput.value.trim()) {
+        bbInput.value = String(bbNo).replace(/\s+/g, "").toUpperCase();
+      }
+      if ((innerDoorNo || bbNo) && !innerInput.value.trim()) {
+        innerInput.value = String(innerDoorNo || bbNo).replace(/\s+/g, "").toUpperCase();
+      }
+    }
+
+    function getAddressCodePacket() {
+      const outerDoor = document.getElementById("manualBuildingId").value.trim();
+      const streetName = document.getElementById("manualStreetName").value.trim();
+      const siteName = document.getElementById("manualSiteName").value.trim();
+      const blockNo = document.getElementById("manualBlockNo").value.trim();
+      const bbNo = document.getElementById("manualBbNo").value.trim();
+      const innerDoor = document.getElementById("manualInnerDoorNo").value.trim() || bbNo;
+      const adminSelect = document.getElementById("manualAdministrativeNeighborhoodSelect");
+      const administrativeNeighborhood =
+        (adminSelect?.value || document.getElementById("manualAdministrativeNeighborhood").value || "").trim();
+      const addressCode = document.getElementById("manualAddressCode").value.trim();
+      const buildingCode = document.getElementById("manualBuildingCode").value.trim();
+      return {
+        administrativeNeighborhood,
+        streetName,
+        siteName,
+        outerDoor,
+        blockNo,
+        bbNo,
+        innerDoor,
+        addressCode,
+        buildingCode,
+        cityDistrict: document.getElementById("cityDistrictValue").textContent,
+        tapuNeighborhood: (document.getElementById("manualTapuNeighborhood")?.value || document.getElementById("neighborhoodValue").textContent || "").trim(),
+        parcel: document.getElementById("parcelValue").textContent,
+        coordinate: selectedCoordinate,
+        title: document.getElementById("placeTitle").textContent,
+        subtitle: document.getElementById("placeSub").textContent
+      };
+    }
+
+    function setParcelTab(tab) {
+      const isBb = tab === "bb";
+      document.getElementById("parcelGeneralTab").classList.toggle("active", !isBb);
+      document.getElementById("parcelBbTab").classList.toggle("active", isBb);
+      document.getElementById("parcelGeneralPanel").hidden = isBb;
+      document.getElementById("parcelBbPanel").hidden = !isBb;
+    }
+
+    function bbListesiniYaz(rows) {
+      const body = document.getElementById("bbTableBody");
+      if (!rows.length) {
+        body.innerHTML = `<tr><td colspan="3">TKGM Bina/BB listesi bekleniyor</td></tr>`;
+        setValue("bbCountValue", "", "TKGM bekleniyor");
+        setValue("bbCountTabValue", "", "TKGM bekleniyor");
+        return;
+      }
+
+      const total = rows.reduce((sum, row) => sum + row.adet, 0);
+      body.innerHTML = rows.map(row => `
+        <tr>
+          <td>${row.blok}</td>
+          <td>${row.nitelik}</td>
+          <td>${row.adet}</td>
+        </tr>
+      `).join("");
+      setValue("bbCountValue", String(total));
+      setValue("bbCountTabValue", String(total));
+      setValue("bbListStatus", "TKGM Bina/BB listesi okundu");
+    }
+
+    function bbBekliyor() {
+      bbListesiniYaz([]);
+      setValue("bbListStatus", "", "TKGM Bina/BB listesi bekleniyor");
+    }
+
+    function yanKatmanKartlariniSifirla() {
+      setValue("cdpCityValue", "", "UCBP bekleniyor");
+      setValue("cdpParcelValue", "", "ÇDP KML bekleniyor");
+      setValue("cdpAreaValue", "", "UCBP bekleniyor");
+      setValue("cdpQualityValue", "", "UCBP bekleniyor");
+      setValue("cdpMevkiiValue", "", "UCBP bekleniyor");
+      setValue("ogmCoverValue", "", "ORMAN KML bekleniyor");
+      document.getElementById("cdpStatus").textContent = "";
+      document.getElementById("ogmStatus").textContent = "";
+    }
+
+    const demoTkmgBbListesi = [
+      { blok: "A", nitelik: "Kat irtifak", adet: 32 },
+      { blok: "B", nitelik: "Kat irtifak", adet: 38 },
+      { blok: "C", nitelik: "Kat irtifak", adet: 38 },
+      { blok: "D", nitelik: "Kat irtifak", adet: 32 },
+      { blok: "E", nitelik: "Kat irtifak", adet: 38 },
+      { blok: "F", nitelik: "Kat irtifak", adet: 32 },
+      { blok: "G", nitelik: "Kat irtifak", adet: 32 }
+    ];
+
+    function setLocator(mode, activeSteps) {
+      document.getElementById("modeBadge").textContent = mode;
+      ["stepTkgm", "stepKbs", "stepEplan", "stepSays"].forEach(id => {
+        document.getElementById(id).classList.toggle("active", activeSteps.includes(id));
+      });
+    }
+
+    function getParcelPayload() {
+      return {
+        il: document.getElementById("citySelect").value,
+        ilce: document.getElementById("districtSelect").value,
+        mahalle: document.getElementById("neighborhoodSelect").value,
+        tkgmId: document.getElementById("tkgmUnitInput").value.trim(),
+        ada: document.getElementById("blockInput").value.trim(),
+        parsel: document.getElementById("parcelInput").value.trim(),
+        bbNo: document.getElementById("bbInput").value.trim()
+      };
+    }
+
+    function syncRequestLine() {
+      const payload = getParcelPayload();
+      const cleanPayload = Object.fromEntries(
+        Object.entries(payload).filter(([, value]) => value)
+      );
+      document.getElementById("requestLine").textContent =
+        `POST /api/location/parcel ${JSON.stringify(cleanPayload)}`;
+      document.getElementById("tkgmOpen").href =
+        `https://parselsorgu.tkgm.gov.tr/#ara/idari/${encodeURIComponent(payload.tkgmId)}/${encodeURIComponent(payload.ada)}/${encodeURIComponent(payload.parsel)}/${Date.now()}`;
+    }
+
+    function update(lat, lng, source) {
+      const latText = Number(lat).toFixed(6);
+      const lngText = Number(lng).toFixed(6);
+      if (!marker) marker = L.marker([lat, lng]).addTo(map);
+      selectedCoordinate = { lat: Number(lat), lng: Number(lng) };
+      marker.setLatLng([lat, lng]);
+      map.setView([lat, lng], Math.max(map.getZoom(), 14));
+      document.getElementById("coordText").textContent = `${latText}, ${lngText}`;
+      externalLinkleriGuncelle(Number(lat), Number(lng));
+      document.getElementById("statusText").textContent = source === "map"
+        ? "Haritadan koordinat secildi"
+        : "Sorgu sonucu guncellendi";
+
+      if (source === "map" || source === "coord") {
+        setLocator("Koordinat", ["stepTkgm", "stepKbs"]);
+      }
+
+      zeminVePgaKartlariniGuncelle(Number(lat), Number(lng));
+    }
+
+    function resolveTextQuery() {
+      const payload = getParcelPayload();
+      document.getElementById("placeTitle").textContent = `${payload.il}${payload.ilce ? " / " + payload.ilce : ""}`;
+      document.getElementById("placeSub").textContent = `${payload.mahalle || "TKGM id " + payload.tkgmId} - ${payload.ada}/${payload.parsel}`;
+      document.getElementById("parcelValue").textContent = `${payload.ada}/${payload.parsel}`;
+      setValue("areaValue", "", "TKGM bekleniyor");
+      setLocator("Metin / Parsel", ["stepKbs", "stepTkgm", "stepEplan", "stepSays"]);
+      update(40.195, 29.06, "text");
+      document.getElementById("statusText").textContent = "TKGM idari linki olustu; parsel cizgisi yalnizca TKGM GeoJSON gelirse cizilir";
+    }
+
+    function parseKmlCoordinates(text) {
+      const xml = new DOMParser().parseFromString(text, "text/xml");
+      const coordinateNodes = [...xml.getElementsByTagName("coordinates")];
+      if (!coordinateNodes.length) return [];
+
+      return coordinateNodes[0].textContent
+        .trim()
+        .split(/\s+/)
+        .map(item => item.split(",").map(Number))
+        .filter(parts => Number.isFinite(parts[0]) && Number.isFinite(parts[1]))
+        .map(parts => ({ lng: parts[0], lat: parts[1] }));
+    }
+
+    function parseKmlMetadata(text, fileName) {
+      const xml = new DOMParser().parseFromString(text, "text/xml");
+      const chunks = [
+        fileName,
+        ...[...xml.getElementsByTagName("name")].map(node => node.textContent),
+        ...[...xml.getElementsByTagName("description")].map(node => node.textContent),
+        ...[...xml.getElementsByTagName("Data")].flatMap(node => [
+          node.getAttribute("name") || "",
+          node.textContent || ""
+        ]),
+        ...[...xml.getElementsByTagName("SimpleData")].flatMap(node => [
+          node.getAttribute("name") || "",
+          node.textContent || ""
+        ])
+      ].join(" ");
+
+      const normalized = chunks
+        .replace(/<[^>]+>/g, " ")
+        .replace(/&nbsp;/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+      const stopWords = "il|ilçe|ilce|mahalle|köy|koy|ada|parsel|parselno|parsel no|alan|yüzölçümü|yuzolcumu|pafta|mülkiyet|mulkiyet|durum|nitelik|mevkii|mevki|bb|bağımsız|bagimsiz";
+      const readAfter = (...labels) => {
+        for (const label of labels) {
+          const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          const suffix = /^(mahalle|köy|koy)$/iu.test(label) ? "(?:si|sü|su|sı)?" : "";
+          const match = normalized.match(new RegExp(`(?:^|\\s)${escaped}${suffix}(?:\\s|[:=-])+([^:;|\\n]+?)(?=\\s+(?:${stopWords})\\b|$)`, "iu"));
+          if (match) return match[1].replace(/[-_]+$/g, "").trim();
+        }
+        return "";
+      };
+
+      const cityDistrictFromFile =
+        fileName.match(/(?:^|[\s_-])il\s+(.+?)\s+il(?:çe|ce)\s+(.+?)(?=\s+\d+\s*[-_\s]*ada|\s+ada\b|$)/iu) ||
+        normalized.match(/(?:^|\s)il\s*[:=-]?\s*([^\s;|]+).*?il(?:çe|ce)\s*[:=-]?\s*([^\s;|]+)/iu);
+      const neighborhoodFromFile = fileName.match(/(?:^|[\s_-])(?:mahalle|mahallesi|köy|koy)\s+(.+?)(?=\s+\d+\s*[-_\s]*ada|\s+ada\b|$)/iu);
+
+      const fileAdaParsel = fileName.match(/(\d+)\s*[-_\s]*ada\s*[-_\s]*(\d+)\s*[-_\s]*parsel/i);
+      const inlineAdaParsel = normalized.match(/ada\s*[:=-]?\s*(\d+)\D{0,12}parsel\s*[:=-]?\s*(\d+)/i);
+
+      return {
+        il: cityDistrictFromFile?.[1] || "",
+        ilce: cityDistrictFromFile?.[2] || "",
+        mahalle: neighborhoodFromFile?.[1]?.replace(/[-_]+$/g, "").trim() || "",
+        ada: fileAdaParsel?.[1] || inlineAdaParsel?.[1] || readAfter("ada"),
+        parsel: fileAdaParsel?.[2] || inlineAdaParsel?.[2] || readAfter("parselno", "parsel no", "parsel"),
+        alan: readAfter("alan", "yüzölçümü", "yuzolcumu"),
+        pafta: readAfter("pafta"),
+        mulkiyet: readAfter("mülkiyet", "mulkiyet"),
+        durum: readAfter("durum"),
+        nitelik: readAfter("nitelik"),
+        mevkii: readAfter("mevkii", "mevki"),
+        bbSayisi: readAfter("bb sayısı", "bb sayisi", "bağımsız bölüm sayısı", "bagimsiz bolum sayisi", "bağımsız bölüm", "bagimsiz bolum")
+      };
+    }
+
+    function centerOf(points) {
+      const total = points.reduce((sum, point) => ({
+        lat: sum.lat + point.lat,
+        lng: sum.lng + point.lng
+      }), { lat: 0, lng: 0 });
+      return {
+        lat: total.lat / points.length,
+        lng: total.lng / points.length
+      };
+    }
+
+    function showKml(points, fileName, metadata, mode = "parcel") {
+      if (!points.length) {
+        document.getElementById("statusText").textContent = "KML icinde koordinat bulunamadi";
+        return;
+      }
+
+      currentKmlMetadata = metadata || {};
+      if (kmlLayer) kmlLayer.remove();
+      const latLngs = points.map(point => [point.lat, point.lng]);
+      const center = centerOf(points);
+
+      if (points.length > 2) {
+        kmlLayer = L.polygon(latLngs, {
+          color: "#1a8ca5",
+          weight: 3,
+          fillColor: "#9dd9e4",
+          fillOpacity: .25
+        }).addTo(map);
+        map.fitBounds(kmlLayer.getBounds(), { padding: [40, 40] });
+      } else {
+        kmlLayer = L.polyline(latLngs, { color: "#1a8ca5", weight: 3 }).addTo(map);
+        update(center.lat, center.lng, "kml");
+      }
+
+      update(center.lat, center.lng, "kml");
+      if (mode !== "cdp") cdpKatmaniniKapat();
+      if (mode === "cdp") cdpKatmaniniAc();
+      setLocator("KML", ["stepTkgm", "stepKbs", "stepEplan", "stepSays"]);
+      document.getElementById("placeTitle").textContent = "KML konumu";
+      document.getElementById("placeSub").textContent = `${fileName} - merkez koordinattan TKGM parsel ters sorgu`;
+      document.getElementById("kmlHint").textContent =
+        `${fileName} okundu; merkez: ${center.lat.toFixed(6)}, ${center.lng.toFixed(6)}. PGA ve zemin sınıfı server sorgusuna hazır.`;
+      if (metadata.il || metadata.ilce) {
+        setValue("cityDistrictValue", [metadata.il, metadata.ilce].filter(Boolean).join(" / "));
+      } else {
+        setValue("cityDistrictValue", "", "TKGM bekleniyor");
+      }
+      setValue("neighborhoodValue", metadata.mahalle);
+      setValue("parcelValue", metadata.ada && metadata.parsel ? `${metadata.ada}/${metadata.parsel}` : "", "Koordinattan okunacak");
+      setValue("areaValue", metadata.alan);
+      setValue("sheetValue", metadata.pafta);
+      setValue("ownershipValue", metadata.mulkiyet || "Kat irtifak", "Kat irtifak");
+      setValue("statusValue", metadata.durum);
+      if (metadata.bbSayisi) {
+        setValue("bbCountValue", metadata.bbSayisi);
+        setValue("bbCountTabValue", metadata.bbSayisi);
+        setValue("bbListStatus", "KML/TKGM özniteliğinden BB sayısı okundu");
+      } else {
+        bbBekliyor();
+      }
+      setValue("qualityValue", metadata.nitelik);
+      if (mode === "cdp") {
+        setValue("cdpCityValue", [metadata.il, metadata.ilce].filter(Boolean).join(" / "), "UCBP bekleniyor");
+        setValue("cdpParcelValue", metadata.ada && metadata.parsel ? `${metadata.ada}/${metadata.parsel}` : "", "ÇDP KML bekleniyor");
+        setValue("cdpAreaValue", metadata.alan);
+        setValue("cdpQualityValue", metadata.nitelik);
+        setValue("cdpMevkiiValue", metadata.mevkii);
+        document.getElementById("cdpStatus").textContent =
+          metadata.il || metadata.ada
+            ? "KML/UCBP öznitelikleri okundu; Balıkesir-Çanakkale ÇDP WMTS aday katmanı açıldı. Görüntü gelmezse servis yalnızca UCBP oturum/proxy içinde çalışıyor olabilir."
+            : "KML merkezi alındı; ÇDP WMTS aday katmanı açıldı. UCBP'de Arazi Kullanımı katmanı ve yerel KML aynı noktada kontrol edilir.";
+      } else if (mode === "ogm") {
+        setValue("cdpLayerValue", "OGM Arazi Örtüsü");
+        setValue("cdpParcelValue", metadata.ada && metadata.parsel ? `${metadata.ada}/${metadata.parsel}` : "", "KML bekleniyor");
+        setValue("cdpAreaValue", metadata.alan);
+        setValue("cdpQualityValue", metadata.nitelik);
+      } else {
+        yanKatmanKartlariniSifirla();
+      }
+      document.getElementById("statusText").textContent =
+        "KML merkezi bulundu; ada/parsel ve mülkiyet/durum TKGM parsel öznitelik sorgusundan gelir";
+    }
+
+    async function readKmlText(file) {
+      if (file.name.toLowerCase().endsWith(".kmz")) {
+        if (!window.JSZip) throw new Error("KMZ okumak icin JSZip yuklenemedi.");
+        const zip = await JSZip.loadAsync(await file.arrayBuffer());
+        const kmlEntry = Object.values(zip.files).find(entry =>
+          !entry.dir && entry.name.toLowerCase().endsWith(".kml")
+        );
+        if (!kmlEntry) throw new Error("KMZ icinde KML dosyasi bulunamadi.");
+        return kmlEntry.async("text");
+      }
+      return file.text();
+    }
+
+    function takbisMetnindenOku(text) {
+      const normalized = text.replace(/\s+/g, " ");
+      const readAfter = (...labels) => {
+        const stopWords = "il|ilçe|ilce|mahalle|köy|koy|ada|parsel|pafta|mevkii|mevki|alan|yüzölçümü|yuzolcumu|nitelik|mülkiyet|mulkiyet|durum|blok|bb";
+        for (const label of labels) {
+          const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          const match = normalized.match(new RegExp(`(?:^|\\s)${escaped}(?:\\s+adı|\\s+adi)?(?:\\s|[:=-])+([^:;|\\n]+?)(?=\\s+(?:${stopWords})\\b|$)`, "iu"));
+          if (match) return match[1].replace(/[-_]+$/g, "").trim();
+        }
+        return "";
+      };
+      const city = readAfter("il");
+      const district = readAfter("ilçe", "ilce");
+      const neighborhood = readAfter("mahalle", "köy", "koy");
+      const ada = normalized.match(/ada\s*[:=-]?\s*(\d+)/i)?.[1];
+      const parsel = normalized.match(/parsel\s*[:=-]?\s*(\d+)/i)?.[1];
+      const type =
+        /kat\s+irtifak/i.test(normalized) ? "Kat İrtifak" :
+        /kat\s+mülkiyet|kat\s+mulkiyet/i.test(normalized) ? "Kat Mülkiyet" :
+        /ana\s+taşınmaz|ana\s+tasinmaz/i.test(normalized) ? "Ana taşınmaz" : "";
+      const block = (
+        normalized.match(/(?:blok|block)\s*[:=-]?\s*([A-ZÇĞİÖŞÜ0-9]+)/i)?.[1] ||
+        normalized.match(/([A-ZÇĞİÖŞÜ])\s*(?:blok|block)\b/i)?.[1]
+      );
+      const bbPatterns = [
+        /(?:bb|b\.b\.|bağımsız bölüm|bagimsiz bolum|bağ\.?\s*böl\.?|bag\.?\s*bol\.?)\s*(?:no|numarası|numarasi|nu|nolu)?\s*[:=-]?\s*([A-ZÇĞİÖŞÜ]?\s*\d+\s*[A-ZÇĞİÖŞÜ]?|\d+\s*\/\s*[A-ZÇĞİÖŞÜ0-9]+|[A-ZÇĞİÖŞÜ]\s*\/\s*\d+)/i,
+        /(?:iç kapı|ic kapi|içkapı|ickapi)\s*(?:no|numarası|numarasi)?\s*[:=-]?\s*([A-ZÇĞİÖŞÜ]?\s*\d+\s*[A-ZÇĞİÖŞÜ]?|\d+\s*\/\s*[A-ZÇĞİÖŞÜ0-9]+|[A-ZÇĞİÖŞÜ]\s*\/\s*\d+)/i,
+        /(?:daire|mesken)\s*(?:no|numarası|numarasi)?\s*[:=-]?\s*([A-ZÇĞİÖŞÜ]?\s*\d+\s*[A-ZÇĞİÖŞÜ]?|\d+\s*\/\s*[A-ZÇĞİÖŞÜ0-9]+|[A-ZÇĞİÖŞÜ]\s*\/\s*\d+)/i,
+        /(?:bağımsız bölüm|bagimsiz bolum).*?(?:adet|no|numara)?\s*[:=-]?\s*(\d+[A-ZÇĞİÖŞÜ]?)/i
+      ];
+      const bb = bbPatterns.map(pattern => normalized.match(pattern)?.[1]).find(Boolean);
+      return { city, district, neighborhood, ada, parsel, block, bb, type };
+    }
+
+    function fileToBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function takbisServerdaOku(file) {
+      if (location.protocol === "file:") return null;
+      const response = await fetch("/api/takbis/parse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          filename: file.name,
+          mime: file.type || "",
+          content_base64: await fileToBase64(file)
+        })
+      });
+      const payload = await response.json();
+      if (!response.ok && !Object.values(payload.parsed || {}).some(Boolean)) {
+        throw new Error(payload.message || "TAKBİS okuma başarısız.");
+      }
+      return payload;
+    }
+
+    function takbisSorguCumlesi(parsed) {
+      const currentCityDistrict = document.getElementById("cityDistrictValue").textContent
+        .replace(/\s*\/\s*/g, " ")
+        .replace(/TKGM bekleniyor|Koordinattan okunacak/gi, "")
+        .trim();
+      const currentNeighborhood = document.getElementById("neighborhoodValue").textContent
+        .replace(/TKGM bekleniyor|Koordinattan okunacak/gi, "")
+        .trim();
+      const cityDistrict = [parsed.city, parsed.district].filter(Boolean).join(" ").trim() || currentCityDistrict;
+      const neighborhood = parsed.neighborhood || currentNeighborhood;
+      return [cityDistrict, neighborhood, parsed.ada && parsed.parsel ? `${parsed.ada}/${parsed.parsel}` : ""]
+        .filter(Boolean)
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+
+    async function takbisDosyasiniIsle(file) {
+      let parsed;
+      let message = "";
+      try {
+        const payload = await takbisServerdaOku(file);
+        parsed = payload?.parsed || null;
+        message = payload?.message || "";
+      } catch (error) {
+        message = error.message;
+      }
+      if (!parsed) {
+        const isText = /\.(txt|csv)$/i.test(file.name);
+        const text = isText ? await file.text() : file.name;
+        parsed = takbisMetnindenOku(text);
+      }
+
+      if (parsed.ada && parsed.parsel) {
+        setValue("parcelValue", `${parsed.ada}/${parsed.parsel}`);
+        document.getElementById("takbisBarcodeStatus").textContent = message || "TAKBİS belgesinden ada-parsel okundu";
+        document.getElementById("takbisBarcodeStatus").classList.remove("pending-value");
+        const query = takbisSorguCumlesi(parsed);
+        if (query.trim()) {
+          document.getElementById("quickTkgmQuery").value = query;
+          try {
+            document.getElementById("statusText").textContent = "TAKBİS ada/parsel okundu; TKGM harita sorgusu otomatik çalışıyor.";
+            const payload = await vizyonTkgmTextSearch(query);
+            const parcelCenter = applyTkgmParcel(payload.parcel);
+            const center = payload.center || parcelCenter;
+            if (center) update(center.lat, center.lng, "coord");
+            document.getElementById("statusText").textContent = "TAKBİS -> TKGM sorgusu tamamlandı; parsel haritada güncellendi.";
+          } catch (error) {
+            document.getElementById("statusText").textContent =
+              `TAKBİS okundu; TKGM otomatik sorgu için üstteki Bul butonunu deneyin. ${error.message}`;
+          }
+        }
+      } else {
+        document.getElementById("takbisBarcodeStatus").textContent = message || "Barkod görsel/PDF okuma Vizyon server OCR/QR servisi bekliyor";
+        document.getElementById("takbisBarcodeStatus").classList.add("pending-value");
+      }
+
+      document.getElementById("manualBlockNo").value = "";
+
+      if (parsed.bb) {
+        const cleanBb = parsed.bb.replace(/\s+/g, "").toUpperCase();
+        setValue("takbisBbNo", cleanBb);
+        prefillAddressCodeFields({ blockNo: parsed.block, bbNo: cleanBb, innerDoorNo: cleanBb });
+        document.getElementById("takbisAssetType").textContent = parsed.type || "Bağımsız bölüm";
+      } else {
+        if (parsed.block) {
+          prefillAddressCodeFields({ blockNo: parsed.block });
+        }
+        setValue("takbisBbNo", "", "Ana taşınmaz veya BB no bekleniyor");
+        document.getElementById("takbisAssetType").textContent = parsed.type || "Ana taşınmaz / BB kontrolü";
+      }
+    }
+
+    map.on("click", event => update(event.latlng.lat, event.latlng.lng, "map"));
+
+    document.getElementById("parcelRun").addEventListener("click", () => {
+      syncRequestLine();
+      resolveTextQuery();
+    });
+
+    document.getElementById("quickTkgmButton").addEventListener("click", async () => {
+      const raw = document.getElementById("quickTkgmQuery").value.trim();
+      const coordMatch = raw.match(/(-?\d+(?:[.,]\d+)?)\s*[,;\s]\s*(-?\d+(?:[.,]\d+)?)/);
+
+      if (coordMatch) {
+        const lat = Number(coordMatch[1].replace(",", "."));
+        const lng = Number(coordMatch[2].replace(",", "."));
+        if (Number.isFinite(lat) && Number.isFinite(lng)) {
+          setLocator("TKGM Koordinat", ["stepTkgm"]);
+          document.getElementById("statusText").textContent = "TKGM koordinattan parsel ters sorgusu calisiyor.";
+          update(lat, lng, "coord");
+          return;
+        }
+      }
+
+      if (!raw && selectedCoordinate) {
+        setLocator("TKGM Koordinat", ["stepTkgm"]);
+        document.getElementById("statusText").textContent = "Secili KML merkezinden TKGM parsel ters sorgusu yenileniyor.";
+        update(selectedCoordinate.lat, selectedCoordinate.lng, "coord");
+        return;
+      }
+
+      if (raw) {
+        try {
+          setLocator("TKGM Metin", ["stepTkgm"]);
+          document.getElementById("statusText").textContent = "TKGM il/ilce/mahalle/ada/parsel eslestirmesi calisiyor.";
+          const payload = await vizyonTkgmTextSearch(raw);
+          const parcelCenter = applyTkgmParcel(payload.parcel);
+          const center = payload.center || parcelCenter;
+          if (center) {
+            update(center.lat, center.lng, "coord");
+          }
+          document.getElementById("statusText").textContent =
+            "TKGM metin sorgusu tamamlandi; parsel geometrisi ve oz nitelikler resmi TKGM cevabindan geldi.";
+        } catch (error) {
+          document.getElementById("statusText").textContent = error.message;
+        }
+      }
+    });
+
+    document.getElementById("quickTkgmQuery").addEventListener("keydown", event => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        document.getElementById("quickTkgmButton").click();
+      }
+    });
+
+    document.getElementById("kmlFile").addEventListener("change", async event => {
+      const file = event.target.files[0];
+      if (!file) return;
+      try {
+        const text = await readKmlText(file);
+        showKml(parseKmlCoordinates(text), file.name, parseKmlMetadata(text, file.name));
+      } catch (error) {
+        document.getElementById("statusText").textContent = error.message;
+      }
+    });
+
+    document.getElementById("cdpFile").addEventListener("change", async event => {
+      const file = event.target.files[0];
+      if (!file) return;
+      try {
+        const text = await readKmlText(file);
+        showKml(parseKmlCoordinates(text), file.name, parseKmlMetadata(text, file.name), "cdp");
+        document.getElementById("statusText").textContent = "ÇDP KML/KMZ okundu; UCBP Arazi Kullanımı kontrolüne hazır.";
+      } catch (error) {
+        document.getElementById("statusText").textContent = error.message;
+      }
+    });
+
+    document.getElementById("ogmFile").addEventListener("change", async event => {
+      const file = event.target.files[0];
+      if (!file) return;
+      try {
+        const text = await readKmlText(file);
+        const points = parseKmlCoordinates(text);
+        const metadata = parseKmlMetadata(text, file.name);
+        showKml(points, file.name, metadata, "ogm");
+        const center = points.length ? centerOf(points) : selectedCoordinate;
+        if (center) {
+          setValue("ogmCoverValue", "OGM WMS doğrulaması bekleniyor", "OGM bekleniyor");
+          document.getElementById("ogmStatus").textContent =
+            `ORMAN KML okundu; merkez ${center.lat.toFixed(6)}, ${center.lng.toFixed(6)}. OGM'ye Git butonu bu koordinata merkez/marker parametresiyle açılır; renk sınıfı OGM Arazi Örtüsü WMS servisinden doğrulanacak.`;
+        }
+        document.getElementById("statusText").textContent = "ORMAN KML/KMZ okundu; OGM vatandaş portalı kontrolüne hazır.";
+      } catch (error) {
+        document.getElementById("statusText").textContent = error.message;
+      }
+    });
+
+    document.getElementById("takbisFile").addEventListener("change", async event => {
+      const file = event.target.files[0];
+      if (!file) return;
+      await takbisDosyasiniIsle(file);
+    });
+
+    document.getElementById("saveSoil").addEventListener("click", () => {
+      if (!selectedCoordinate) {
+        document.getElementById("soilMemoryStatus").textContent =
+          "Zemin hafizasi: once koordinat secin veya parsel sorgusunu calistirin.";
+        return;
+      }
+
+      const payload = {
+        lat: Number(selectedCoordinate.lat.toFixed(6)),
+        lng: Number(selectedCoordinate.lng.toFixed(6)),
+        zeminSinifi: document.getElementById("soilCode").textContent,
+        kaynak: "USGS Global Vs30 / uzman dogrulamasi",
+        tarih: new Date().toISOString().slice(0, 10),
+        guven: "uzman-onayli",
+        vs30: "server sonucu",
+        tbdySinifi: document.getElementById("soilCode").textContent
+      };
+
+      document.getElementById("soilMemoryStatus").textContent =
+        `POST /api/soil-observations ${JSON.stringify(payload)}`;
+    });
+
+    document.getElementById("copySelectedCoord").addEventListener("click", async () => {
+      if (!selectedCoordinate) {
+        document.getElementById("statusText").textContent = "Önce KML yükleyin veya haritada koordinat seçin.";
+        return;
+      }
+
+      const text = `${selectedCoordinate.lat.toFixed(6)}, ${selectedCoordinate.lng.toFixed(6)}`;
+      try {
+        await navigator.clipboard.writeText(text);
+        document.getElementById("statusText").textContent = `Seçili taşınmaz koordinatı kopyalandı: ${text}`;
+      } catch {
+        document.getElementById("statusText").textContent = `Koordinat: ${text}`;
+      }
+    });
+
+    async function copySelectedCoordinateForPortal(portalName) {
+      if (!selectedCoordinate) return;
+      const text = `${selectedCoordinate.lat.toFixed(6)}, ${selectedCoordinate.lng.toFixed(6)}`;
+      try {
+        await navigator.clipboard.writeText(text);
+        document.getElementById("statusText").textContent =
+          `${portalName} aciliyor; KML merkezi panoya kopyalandi: ${text}`;
+      } catch {
+        document.getElementById("statusText").textContent =
+          `${portalName} aciliyor; koordinat: ${text}`;
+      }
+    }
+
+    document.getElementById("topOgmOpen").addEventListener("click", () => {
+      copySelectedCoordinateForPortal("OGM");
+    });
+
+    document.getElementById("ogmOpen").addEventListener("click", () => {
+      copySelectedCoordinateForPortal("OGM");
+    });
+
+    document.getElementById("copyPgaValue").addEventListener("click", async () => {
+      const pga = document.getElementById("pga").textContent.trim();
+      const unit = document.getElementById("pgaUnit").textContent.trim();
+      if (!pga || pga === "AFAD" || pga === "...") {
+        document.getElementById("statusText").textContent = "AFAD PGA değeri henüz okunmadı.";
+        return;
+      }
+
+      const text = `${pga} ${unit}`.trim();
+      try {
+        await navigator.clipboard.writeText(text);
+        document.getElementById("statusText").textContent = `Deprem ivmesi kopyalandı: ${text}`;
+      } catch {
+        document.getElementById("statusText").textContent = `Deprem ivmesi: ${text}`;
+      }
+    });
+
+    document.getElementById("copyCoordForUcbp").addEventListener("click", async () => {
+      if (!selectedCoordinate) {
+        document.getElementById("statusText").textContent = "Önce KML yükleyin veya haritada koordinat seçin.";
+        return;
+      }
+
+      const text = `${selectedCoordinate.lat.toFixed(6)}, ${selectedCoordinate.lng.toFixed(6)}`;
+      try {
+        await navigator.clipboard.writeText(text);
+        document.getElementById("statusText").textContent = `UCBP için koordinat kopyalandı: ${text}`;
+      } catch {
+        document.getElementById("statusText").textContent = `UCBP koordinatı: ${text}`;
+      }
+    });
+
+    function parseAfadPgaText(raw) {
+      const normalized = (raw || "").replace(",", ".");
+      const match =
+        normalized.match(/PGA\s*475[\s\S]{0,160}?(\d+(?:\.\d+)?)/i) ||
+        normalized.match(/gridcell[^>]*>\s*PGA\s*475[\s\S]{0,160}?gridcell[^>]*>\s*(\d+(?:\.\d+)?)/i) ||
+        normalized.match(/(\d+\.\d+)/);
+      const value = match ? Number(match[1]) : NaN;
+      return Number.isFinite(value) && value > 0 && value < 5 ? value : NaN;
+    }
+
+    async function afadPgaMetniniOku(raw) {
+      if (location.protocol !== "file:") {
+        try {
+          const response = await fetch("/api/afad/parse", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: raw })
+          });
+          if (response.ok) {
+            const payload = await response.json();
+            return Number(payload.pga_g);
+          }
+        } catch {
+          // Tarayici ici parser yedek olarak devam eder.
+        }
+      }
+      return parseAfadPgaText(raw);
+    }
+
+    const savePgaButton = document.getElementById("savePgaValue");
+    if (savePgaButton) savePgaButton.addEventListener("click", async () => {
+      const raw = document.getElementById("manualPgaValue").value.trim();
+      const value = await afadPgaMetniniOku(raw);
+
+      if (!Number.isFinite(value)) {
+        document.getElementById("statusText").textContent = "AFAD PGA değeri okunamadı. Örnek: 0.587";
+        return;
+      }
+
+      document.getElementById("pga").textContent = value.toFixed(3).replace(".", ",");
+      document.getElementById("pgaUnit").textContent = "g";
+      document.getElementById("statusText").textContent =
+        `AFAD PGA 475 değeri işlendi: ${value.toFixed(3).replace(".", ",")} g`;
+    });
+
+    document.getElementById("downloadMapImage").addEventListener("click", () => {
+      const coord = selectedCoordinate
+        ? `${selectedCoordinate.lat.toFixed(6)}, ${selectedCoordinate.lng.toFixed(6)}`
+        : "Koordinat bekleniyor";
+      const parcel = document.getElementById("parcelValue").textContent;
+      const cdp = document.getElementById("cdpLayerValue").textContent;
+      const ogm = document.getElementById("ogmCoverValue").textContent;
+      const svg = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720">
+          <rect width="1280" height="720" fill="#f7f8f5"/>
+          <rect x="0" y="0" width="1280" height="88" fill="#ffffff"/>
+          <rect x="0" y="86" width="1280" height="4" fill="#d71920"/>
+          <text x="34" y="42" font-family="Arial" font-size="24" font-weight="700" fill="#111827">VİZYON TAŞINMAZ DEĞERLEME VE DANIŞMANLIK A.Ş.</text>
+          <text x="34" y="68" font-family="Arial" font-size="16" fill="#475569">Vizyon Asistan - CBS Veri Ağı</text>
+          <rect x="34" y="122" width="1212" height="420" rx="10" fill="#e8eee8" stroke="#cbd5e1"/>
+          <text x="70" y="175" font-family="Arial" font-size="22" font-weight="700" fill="#102033">Harita / KML Kontrol Görseli</text>
+          <text x="70" y="220" font-family="Arial" font-size="18" fill="#102033">Koordinat: ${coord}</text>
+          <text x="70" y="252" font-family="Arial" font-size="18" fill="#102033">Ada / Parsel: ${parcel}</text>
+          <text x="70" y="284" font-family="Arial" font-size="18" fill="#102033">ÇDP Katmanı: ${cdp}</text>
+          <text x="70" y="316" font-family="Arial" font-size="18" fill="#102033">OGM Arazi Örtüsü: ${ogm}</text>
+          <polygon points="760,170 940,135 1085,265 1035,420 830,445 710,320" fill="#9dd9e4" fill-opacity=".42" stroke="#1a8ca5" stroke-width="6"/>
+          <circle cx="902" cy="294" r="15" fill="#1a8ca5"/>
+          <rect x="34" y="580" width="1212" height="86" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+          <text x="70" y="620" font-family="Arial" font-size="15" fill="#475569">Not: Bu görsel asistan özet çıktısıdır. Resmi OGM/TUÇBS raster görüntüsü için portal ekranı veya server proxy bağlantısı doğrulanmalıdır.</text>
+        </svg>`;
+      const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "vizyon-cbs-kml-kontrol.svg";
+      link.click();
+      URL.revokeObjectURL(link.href);
+      document.getElementById("statusText").textContent = "KML/OGM/ÇDP özet görseli indirildi.";
+    });
+
+    document.getElementById("parcelGeneralTab").addEventListener("click", () => setParcelTab("general"));
+    document.getElementById("parcelBbTab").addEventListener("click", () => setParcelTab("bb"));
+
+    document.getElementById("saveBuildingId").addEventListener("click", async () => {
+      const packet = getAddressCodePacket();
+      if (packet.bbNo) {
+        setValue("takbisBbNo", packet.bbNo.replace(/\s+/g, "").toUpperCase());
+      }
+      setValue("uavtValue", packet.addressCode || "", packet.outerDoor ? "Adres kodu sorgusu hazırlanıyor" : "Dış kapı no bekleniyor");
+      setValue("buildingIdValue", packet.buildingCode || "", "Adres kodu sonrası bekleniyor");
+      if (!packet.outerDoor) {
+        document.getElementById("statusText").textContent = "Adres kodu için önce bina/dış kapı no girin.";
+        return;
+      }
+
+      document.getElementById("addressValue").textContent = buildReadableAddress(packet);
+      document.getElementById("statusText").textContent =
+        `Adres kodu paketi hazırlanıyor: ${packet.outerDoor}. Adres kodu -> bina kodu/kimlik no -> BEP-TR/EKB akışı.`;
+
+      try {
+        const response = await fetch("/api/uavt/lookup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            provider: "Quick Sigorta adres kodu / NVI alternatif akış",
+            door_no: packet.outerDoor,
+            outer_door_no: packet.outerDoor,
+            inner_door_no: packet.innerDoor,
+            bb_no: packet.bbNo,
+            block_no: packet.blockNo,
+            site_name: packet.siteName,
+            formatted_address: buildReadableAddress(packet),
+            administrative_neighborhood: packet.administrativeNeighborhood,
+            street_name: packet.streetName,
+            address_code: packet.addressCode,
+            building_code: packet.buildingCode,
+            building_identity_no: packet.buildingCode,
+            coordinate: selectedCoordinate,
+            title: packet.title,
+            subtitle: packet.subtitle,
+            city_district: document.getElementById("cityDistrictValue").textContent,
+            neighborhood: document.getElementById("neighborhoodValue").textContent,
+            parcel: document.getElementById("parcelValue").textContent,
+            sheet: document.getElementById("sheetValue").textContent,
+            ownership: document.getElementById("ownershipValue").textContent,
+            tkgm_status: document.getElementById("statusValue").textContent,
+            bb_count: document.getElementById("bbCountValue").textContent,
+            takbis_type: document.getElementById("takbisAssetType").textContent,
+            takbis_status: document.getElementById("takbisBarcodeStatus").textContent
+          })
+        });
+        const payload = await response.json();
+        setValue("uavtValue", payload.uavt || payload.address_code || packet.addressCode || "", payload.label || "Adres kodu sorgusu gerekli");
+        setValue("buildingIdValue", payload.building_identity_no || payload.building_code || packet.buildingCode || "", "Adres kodu sonrası bekleniyor");
+        if (payload.address_code) document.getElementById("manualAddressCode").value = payload.address_code;
+        if (payload.building_code || payload.building_identity_no) {
+          document.getElementById("manualBuildingCode").value = payload.building_code || payload.building_identity_no;
+        }
+        if (payload.address) document.getElementById("addressValue").textContent = payload.address;
+        const ekbCode = payload.building_code || payload.building_identity_no || payload.address_code || payload.uavt;
+        if (ekbCode) {
+          document.getElementById("statusText").textContent =
+            payload.message || payload.quick_message || "Adres kodu ve bina kodu alındı; EKB sorgusu başlıyor.";
+          ekbSorgula(ekbCode);
+        } else {
+          // Quick'in mahalle/sokak/bina adimlari reCAPTCHA istedigi icin otomatik gecilemez.
+          setValue("uavtValue", "", "Quick reCAPTCHA istiyor — elle sorgu gerekli");
+          document.getElementById("statusText").textContent =
+            "Quick otomatik sorgu reCAPTCHA nedeniyle tamamlanamadı. Sıra: 'Quick adres kodu aç' → Sorgula → Kodu Kopyala → buraya dönüp 'Quick sonucunu yapıştır'.";
+        }
+      } catch {
+        setValue("uavtValue", "", "UAVT sorgu hatası");
+        document.getElementById("statusText").textContent =
+          "UAVT isteği server'a gönderilemedi. NVI bağlantısı için tekrar deneyin.";
+      }
+    });
+
+    ["citySelect", "districtSelect", "neighborhoodSelect", "tkgmUnitInput", "blockInput", "parcelInput", "bbInput"]
+      .forEach(id => document.getElementById(id).addEventListener("input", syncRequestLine));
+
+    const adminNeighborhoodSelect = document.getElementById("manualAdministrativeNeighborhoodSelect");
+    const adminNeighborhoodInput = document.getElementById("manualAdministrativeNeighborhood");
+    const refreshAdminNeighborhoods = () => {
+      const cityDistrict = currentCityDistrictParts();
+      loadAdministrativeNeighborhoods(cityDistrict.city, cityDistrict.district, adminNeighborhoodInput.value.trim());
+    };
+    if (adminNeighborhoodInput) {
+      adminNeighborhoodInput.addEventListener("focus", refreshAdminNeighborhoods);
+      adminNeighborhoodInput.addEventListener("input", () => {
+        if (adminNeighborhoodSelect && adminNeighborhoodSelect.value !== adminNeighborhoodInput.value) {
+          adminNeighborhoodSelect.value = "";
+        }
+      });
+    }
+    if (adminNeighborhoodSelect) {
+      adminNeighborhoodSelect.addEventListener("focus", refreshAdminNeighborhoods);
+      adminNeighborhoodSelect.addEventListener("change", () => {
+        if (adminNeighborhoodSelect.value) {
+          adminNeighborhoodInput.value = adminNeighborhoodSelect.value;
+          document.getElementById("addressValue").textContent = buildReadableAddress(getAddressCodePacket());
+        }
+      });
+    }
+
+    // Adres alanlarina her giriste NVI/SAYS adres satiri canli guncellenir.
+    ["manualStreetName", "manualSiteName", "manualBlockNo", "manualBbNo", "manualBuildingId", "manualInnerDoorNo"]
+      .forEach(id => {
+        const field = document.getElementById(id);
+        if (field) field.addEventListener("input", () => {
+          const address = buildReadableAddress(getAddressCodePacket());
+          if (address) document.getElementById("addressValue").textContent = address;
+        });
+      });
+
+    // ---- EKB: BEP-TR acik sorgusu (bina kodu veya UAVT ile otomatik) ----
+    let ekbSonSorgu = "";
+
+    function ekbSorguKodu() {
+      const bina = document.getElementById("manualBuildingCode").value.trim();
+      const uavt = document.getElementById("manualAddressCode").value.trim();
+      return bina || uavt;
+    }
+
+    async function ekbSorgula(code, { force = false } = {}) {
+      const clean = String(code || "").replace(/\D+/g, "");
+      if (!clean || (!force && clean === ekbSonSorgu)) return;
+      ekbSonSorgu = clean;
+      const statusEl = document.getElementById("ekbStatusValue");
+      const pdfLink = document.getElementById("ekbPdfLink");
+      pdfLink.hidden = true;
+      statusEl.textContent = `BEP-TR EKB sorgulanıyor... (${clean})`;
+      try {
+        const response = await fetch(`/api/ekb/query?code=${encodeURIComponent(clean)}`);
+        const payload = await response.json();
+        if (payload.status !== "ok") throw new Error(payload.message || "EKB sorgusu başarısız.");
+        if (payload.found) {
+          const gecerlilik = payload.document_end_date
+            ? String(payload.document_end_date).slice(0, 10).split("-").reverse().join(".")
+            : "";
+          const ilIlce = [payload.city, payload.town].filter(Boolean).join("/");
+          const satirlar = [
+            payload.building_name ? `<b>${payload.building_name}</b>` : "",
+            ilIlce,
+            payload.typology,
+            payload.total_area ? `${Math.round(Number(payload.total_area))} m²` : "",
+            (payload.total_class || payload.co2_class) ? `Sınıf: ${payload.total_class || "-"}${payload.co2_class ? " / " + payload.co2_class + " (CO₂)" : ""}` : "",
+            payload.document_no ? `Belge: ${payload.document_no}` : "",
+            gecerlilik ? `Geçerlilik: ${gecerlilik}` : ""
+          ].filter(Boolean);
+          statusEl.innerHTML = `✅ EKB VAR — ${satirlar.join(" · ")}`;
+          statusEl.classList.remove("pending-value");
+          pdfLink.href = `/api/ekb/pdf?projectId=${payload.project_id || 0}&oldProjectId=${payload.old_project_id || 0}`;
+          pdfLink.hidden = false;
+          document.getElementById("statusText").textContent =
+            `EKB bulundu: ${payload.building_name || ""} — ${payload.total_class || "-"} sınıfı. PDF karttaki bağlantıdan iner.`;
+        } else {
+          statusEl.textContent = `EKB kaydı yok — ${payload.aciklama || "BEP-TR sonucu boş."}`;
+          statusEl.classList.remove("pending-value");
+          document.getElementById("statusText").textContent =
+            "BEP-TR sorgusu tamamlandı: bu bina için 2017 sonrası EKB kaydı bulunamadı.";
+        }
+      } catch (error) {
+        ekbSonSorgu = "";
+        statusEl.textContent = `EKB sorgu hatası: ${error.message}`;
+        document.getElementById("statusText").textContent =
+          "BEP-TR EKB sorgusuna ulaşılamadı; EKB Sorgula ile tekrar deneyin.";
+      }
+    }
+
+    ["manualBuildingCode", "manualAddressCode"].forEach(id => {
+      document.getElementById(id).addEventListener("change", () => ekbSorgula(ekbSorguKodu()));
+    });
+
+    document.getElementById("ekbOpen").addEventListener("click", () => {
+      const code = ekbSorguKodu();
+      if (code) {
+        ekbSorgula(code, { force: true });
+      } else {
+        document.getElementById("statusText").textContent =
+          "EKB için önce UAVT veya bina kodu girin (Quick sonucunu yapıştır ile de alabilirsiniz).";
+        window.open("https://beptr.csb.gov.tr/bep-web/#/queryEkb", "_blank", "noopener");
+      }
+    });
+
+    // ---- Quick yari-otomatik akis: form otomatik dolar, captcha+Sorgula insanda kalir ----
+    function quickPaketiOlustur() {
+      const packet = getAddressCodePacket();
+      const cd = splitCityDistrictLabel(packet.cityDistrict);
+      return {
+        il: cd.city,
+        ilce: cd.district,
+        mahalle: packet.administrativeNeighborhood,
+        sokak: packet.streetName,
+        disKapi: packet.outerDoor,
+        blok: packet.blockNo,
+        icKapi: packet.innerDoor || packet.bbNo
+      };
+    }
+
+    document.getElementById("quickAutoFill").addEventListener("click", () => {
+      const d = quickPaketiOlustur();
+      const eksik = [
+        ["il/ilçe", d.il && d.ilce],
+        ["idari mahalle", d.mahalle],
+        ["cadde/sokak", d.sokak],
+        ["dış kapı", d.disKapi]
+      ].filter(([, ok]) => !ok).map(([ad]) => ad);
+      if (eksik.length) {
+        document.getElementById("statusText").textContent =
+          "Quick otomatik doldurma için eksik: " + eksik.join(", ");
+        return;
+      }
+      const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(d))));
+      window.open("https://www.quicksigorta.com/adres-kodu-sorgulama#vizyon=" + encodeURIComponent(b64), "_blank", "noopener");
+      document.getElementById("statusText").textContent =
+        "Quick açıldı. O sayfada yer imindeki '🔖 Vizyon Quick Doldur'a tıklayın; alanlar otomatik seçilecek.";
+    });
+
+    // Bookmarklet: Quick sayfasinda calisir; hash'teki paketi okur, MUI form alanlarini
+    // sirayla secer, Sorgula/reCAPTCHA'yi insana birakir, sonuc cikinca UAVT+bina kodunu
+    // panoya kopyalar. (CAPTCHA'ya dokunmaz.)
+    const vizyonQuickBookmarklet = "(async()=>{" +
+      "const N=s=>String(s||'').replace(/İ/g,'I').replace(/ı/g,'i').replace(/Ş/g,'S').replace(/ş/g,'s').replace(/Ğ/g,'G').replace(/ğ/g,'g').replace(/Ü/g,'U').replace(/ü/g,'u').replace(/Ö/g,'O').replace(/ö/g,'o').replace(/Ç/g,'C').replace(/ç/g,'c').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();" +
+      "const K=s=>N(s).replace(/ /g,'');" +
+      "const W=ms=>new Promise(r=>setTimeout(r,ms));" +
+      "const T=m=>{let t=document.getElementById('vzToast');if(!t){t=document.createElement('div');t.id='vzToast';t.style.cssText='position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:99999;background:#0f172a;color:#fff;padding:12px 18px;border-radius:10px;font:14px/1.4 sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.35);max-width:90%';document.body.appendChild(t);}t.textContent=m;};" +
+      "let d=null;const m=location.hash.match(/vizyon=([^&]+)/);" +
+      "if(m){try{d=JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(m[1])))));}catch(e){}}" +
+      "if(!d){T('Vizyon paketi bulunamadi. Quick sayfasini Vizyon ekranindaki Quick\\'te Otomatik Doldur butonuyla acin.');return;}" +
+      "async function S(name,ist){if(!ist)return true;const inp=document.querySelector('input[name=\"'+name+'\"]');if(!inp)return false;inp.focus();" +
+      "const st=Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;st.call(inp,ist);inp.dispatchEvent(new Event('input',{bubbles:true}));" +
+      "const t0=Date.now();while(Date.now()-t0<12000){await W(250);" +
+      "const o=Array.from(document.querySelectorAll('[role=\"listbox\"] [role=\"option\"], .MuiAutocomplete-option'));" +
+      "if(o.length){const h=N(ist),hk=K(ist);" +
+      "let s=o.find(x=>N(x.textContent)===h)||o.find(x=>K(x.textContent)===hk)||o.find(x=>K(x.textContent).includes(hk)||hk.includes(K(x.textContent)))||o[0];" +
+      "s.click();await W(400);return true;}}return false;}" +
+      "T('Vizyon: adres alanlari dolduruluyor...');" +
+      "await S('city',d.il);await S('county',d.ilce);" +
+      "await S('town',d.bucak||'MERKEZ');await S('village',d.koy||'MERKEZ');" +
+      "await S('neighbourhood',d.mahalle);await S('street',d.sokak);" +
+      "const ad=[];if(d.disKapi&&d.blok){ad.push(d.disKapi+' '+d.blok+'-BLOK');ad.push(d.disKapi+' '+d.blok+' BLOK');}if(d.disKapi)ad.push(d.disKapi);" +
+      "for(const a of ad){if(await S('building',a))break;}" +
+      "if(d.icKapi)await S('space',d.icKapi);" +
+      "T('Vizyon: alanlar dolduruldu. reCAPTCHA + Sorgula sizde; sonuc cikinca kodlar otomatik kopyalanacak.');" +
+      "const ob=new MutationObserver(()=>{const t=document.body.innerText;" +
+      "const u=t.match(/(\\d{10})[\\s\\S]{0,40}Kodu Kopyala/i);" +
+      "const b=t.match(/Bina\\s*Kodu[\\s\\S]{0,40}?(\\d{6,10})/i);" +
+      "if(u){ob.disconnect();const pay='UAVT:'+u[1]+(b?' BINA:'+b[1]:'');" +
+      "navigator.clipboard.writeText(pay).then(()=>T('Vizyon: '+pay+' panoya kopyalandi. Vizyon ekranina donup Quick sonucunu yapistir deyin.')).catch(()=>T('Vizyon: elle kopyalayin -> '+pay));}});" +
+      "ob.observe(document.body,{childList:true,subtree:true});" +
+      "})();";
+    const bookmarkletLink = document.getElementById("quickBookmarklet");
+    bookmarkletLink.href = "javascript:" + encodeURIComponent(vizyonQuickBookmarklet);
+    bookmarkletLink.addEventListener("click", event => {
+      event.preventDefault();
+      alert("Bu düğmeyi TIKLAMAYIN — fareyle tutup tarayıcının yer imleri (favoriler) çubuğuna sürükleyip bırakın.\n\nSonra: '1 · Quick'te Otomatik Doldur' ile açılan Quick sayfasında bu yer imine tıklayın; adres alanları otomatik seçilir.");
+    });
+
+    const quickSetupModal = document.getElementById("quickSetupModal");
+    document.getElementById("quickSetupOpen").addEventListener("click", () => {
+      quickSetupModal.hidden = false;
+    });
+    document.getElementById("quickSetupClose").addEventListener("click", () => {
+      quickSetupModal.hidden = true;
+    });
+    quickSetupModal.addEventListener("click", event => {
+      if (event.target === quickSetupModal) quickSetupModal.hidden = true;
+    });
+    document.addEventListener("keydown", event => {
+      if (event.key === "Escape" && !quickSetupModal.hidden) quickSetupModal.hidden = true;
+    });
+
+    document.getElementById("quickPasteCodes").addEventListener("click", async () => {
+      let text = "";
+      try {
+        text = await navigator.clipboard.readText();
+      } catch {
+        document.getElementById("statusText").textContent =
+          "Pano okunamadı; UAVT ve bina kodunu alanlara elle yapıştırın.";
+        return;
+      }
+      const numbers = String(text || "").match(/\d{6,12}/g) || [];
+      let uavt = "";
+      let bina = "";
+      numbers.forEach(value => {
+        if (value.length === 10 && !uavt) uavt = value;
+        else if (value.length !== 10 && !bina) bina = value;
+      });
+      if (!uavt && !bina) {
+        document.getElementById("statusText").textContent =
+          "Panoda UAVT/bina kodu bulunamadı; Quick'te 'Kodu Kopyala'ya basıp tekrar deneyin.";
+        return;
+      }
+      if (uavt) {
+        document.getElementById("manualAddressCode").value = uavt;
+        setValue("uavtValue", uavt);
+      }
+      if (bina) {
+        document.getElementById("manualBuildingCode").value = bina;
+        setValue("buildingIdValue", bina);
+      }
+      document.getElementById("statusText").textContent =
+        `Quick sonucu alındı${uavt ? ` — UAVT ${uavt}` : ""}${bina ? ` — bina kodu ${bina}` : ""}; EKB sorgusu başlıyor.`;
+      ekbSorgula(bina || uavt, { force: true });
+    });
+
+    syncRequestLine();
+
+  </script>
+
+  <!-- ================= VİZYON ROBOT ASİSTAN (soru-cevap) ================= -->
+  <style>
+    #vzBot, #vzBot * { box-sizing: border-box; }
+    #vzBot {
+      position: fixed;
+      right: 22px;
+      bottom: 20px;
+      z-index: 5000;
+      font-family: "Segoe UI", Inter, Arial, sans-serif;
+    }
+    .vzbot-launch {
+      width: 66px; height: 66px;
+      border: none; padding: 0; cursor: pointer;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 25%, #1a8ca5, #102033 78%);
+      box-shadow: 0 10px 26px rgba(16,32,51,.42);
+      display: grid; place-items: center;
+      transition: transform .18s ease, box-shadow .18s ease;
+      animation: vzbot-bob 3.2s ease-in-out infinite;
+    }
+    .vzbot-launch:hover { transform: translateY(-3px) scale(1.05); box-shadow: 0 14px 32px rgba(16,32,51,.5); }
+    @keyframes vzbot-bob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
+    .vzbot-badge {
+      position: absolute; top: -3px; right: -3px;
+      min-width: 18px; height: 18px; padding: 0 4px;
+      background: #d71920; color: #fff; border-radius: 10px;
+      font-size: 11px; font-weight: 800; line-height: 18px; text-align: center;
+      border: 2px solid #fff;
+    }
+    .vzbot-panel {
+      position: absolute; right: 0; bottom: 80px;
+      width: 350px; max-width: calc(100vw - 32px);
+      height: 480px; max-height: calc(100vh - 120px);
+      background: #fff; border-radius: 18px; overflow: hidden;
+      box-shadow: 0 24px 60px rgba(16,32,51,.45);
+      display: none; flex-direction: column;
+      border: 1px solid var(--soft);
+    }
+    #vzBot.open .vzbot-panel { display: flex; animation: vzbot-pop .18s ease; }
+    @keyframes vzbot-pop { from{opacity:0; transform:translateY(12px)} to{opacity:1; transform:none} }
+    .vzbot-head {
+      display: flex; align-items: center; gap: 10px;
+      padding: 13px 14px;
+      background: linear-gradient(135deg, #102033, #1a8ca5);
+      color: #fff;
+    }
+    .vzbot-head h4 { margin: 0; font-size: 15px; }
+    .vzbot-head p { margin: 1px 0 0; font-size: 11px; opacity: .82; }
+    .vzbot-head .vzbot-avatar { width: 38px; height: 38px; flex: 0 0 38px; }
+    .vzbot-close {
+      margin-left: auto; width: 28px; height: 28px; border: none;
+      background: rgba(255,255,255,.16); color: #fff; border-radius: 8px;
+      font-size: 18px; cursor: pointer; line-height: 1;
+    }
+    .vzbot-body {
+      flex: 1; overflow-y: auto; padding: 14px;
+      background: #f5f8f7; display: flex; flex-direction: column; gap: 10px;
+    }
+    .vzbot-msg { max-width: 86%; padding: 9px 12px; border-radius: 13px; font-size: 13px; line-height: 1.5; }
+    .vzbot-msg.bot { align-self: flex-start; background: #fff; border: 1px solid var(--soft); border-bottom-left-radius: 4px; color: #182230; }
+    .vzbot-msg.me { align-self: flex-end; background: #102033; color: #fff; border-bottom-right-radius: 4px; }
+    .vzbot-msg b { color: inherit; }
+    .vzbot-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+    .vzbot-chip {
+      border: 1px solid #bfe0e8; background: #eaf6f9; color: #0f5d6e;
+      border-radius: 14px; padding: 5px 11px; font-size: 12px; cursor: pointer;
+      font-weight: 700;
+    }
+    .vzbot-chip:hover { background: #d9eff4; }
+    .vzbot-foot { display: flex; gap: 8px; padding: 10px; border-top: 1px solid var(--soft); background: #fff; }
+    .vzbot-foot input {
+      flex: 1; height: 38px; padding: 0 12px; border: 1px solid var(--soft);
+      border-radius: 10px; font-size: 13px; outline: none;
+    }
+    .vzbot-foot input:focus { border-color: #1a8ca5; }
+    .vzbot-send {
+      width: 42px; height: 38px; border: none; border-radius: 10px; cursor: pointer;
+      background: linear-gradient(135deg, #15a675, #1a8ca5); color: #fff; font-size: 16px;
+    }
+  </style>
+
+  <div id="vzBot">
+    <div class="vzbot-panel" role="dialog" aria-label="Vizyon Robot Asistan">
+      <div class="vzbot-head">
+        <svg class="vzbot-avatar" viewBox="0 0 64 64" aria-hidden="true">
+          <rect x="27" y="4" width="4" height="9" rx="2" fill="#cfe9ef"/><circle cx="29" cy="4" r="4" fill="#d71920"/>
+          <rect x="9" y="14" width="46" height="38" rx="12" fill="#fff"/>
+          <rect x="14" y="20" width="36" height="26" rx="9" fill="#102033"/>
+          <circle cx="25" cy="33" r="4.6" fill="#28e0b0"/><circle cx="39" cy="33" r="4.6" fill="#28e0b0"/>
+          <circle cx="25" cy="33" r="1.7" fill="#0b3a4a"/><circle cx="39" cy="33" r="1.7" fill="#0b3a4a"/>
+          <path d="M26 40 q6 4 12 0" stroke="#28e0b0" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+          <rect x="20" y="52" width="24" height="7" rx="3.5" fill="#cfe9ef"/>
+        </svg>
+        <div>
+          <h4>Vizyon Asistan</h4>
+          <p>CBS sorularını yanıtlar</p>
+        </div>
+        <button class="vzbot-close" type="button" aria-label="Kapat">×</button>
+      </div>
+      <div class="vzbot-body" id="vzBotBody"></div>
+      <div class="vzbot-foot">
+        <input id="vzBotInput" type="text" placeholder="Sorunuzu yazın..." autocomplete="off">
+        <button class="vzbot-send" id="vzBotSend" type="button" aria-label="Gönder">➤</button>
+      </div>
+    </div>
+    <button class="vzbot-launch" type="button" aria-label="Vizyon Asistan'a sor">
+      <span class="vzbot-badge">?</span>
+      <svg width="38" height="38" viewBox="0 0 64 64" aria-hidden="true">
+        <rect x="27" y="3" width="4" height="9" rx="2" fill="#cfe9ef"/><circle cx="29" cy="3.5" r="4" fill="#d71920"/>
+        <rect x="10" y="13" width="44" height="37" rx="12" fill="#eef6f8"/>
+        <rect x="15" y="19" width="34" height="25" rx="9" fill="#0b1b2c"/>
+        <circle cx="25" cy="31" r="4.4" fill="#28e0b0"/><circle cx="39" cy="31" r="4.4" fill="#28e0b0"/>
+        <path d="M26 38 q6 4 12 0" stroke="#28e0b0" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+      </svg>
+    </button>
+  </div>
+
+  <script>
+  (function () {
+    const bot = document.getElementById("vzBot");
+    // Vizyon Asistanı içine iframe olarak gömülünce ana uygulamanın robotu kullanılır;
+    // burada çift robot olmasın diye gizlenir. CBS tek başına açılınca robot görünür.
+    if (window.self !== window.top) { if (bot) bot.style.display = "none"; return; }
+    const body = document.getElementById("vzBotBody");
+    const input = document.getElementById("vzBotInput");
+    const norm = s => String(s || "")
+      .replace(/İ/g,"i").replace(/I/g,"i").replace(/ı/g,"i").replace(/Ş/g,"s").replace(/ş/g,"s")
+      .replace(/Ğ/g,"g").replace(/ğ/g,"g").replace(/Ü/g,"u").replace(/ü/g,"u")
+      .replace(/Ö/g,"o").replace(/ö/g,"o").replace(/Ç/g,"c").replace(/ç/g,"c")
+      .toLocaleLowerCase("tr").replace(/[^a-z0-9\s]/g," ").replace(/\s+/g," ").trim();
+
+    // Bilgi tabanı: her giriş anahtar kelimelerle eşleşir.
+    const KB = [
+      { k:["merhaba","selam","nasilsin","gunaydin","iyi gunler"], a:"Merhaba! 👋 Ben Vizyon Asistan. CBS ekranıyla ilgili sorularını yanıtlarım. Aşağıdaki başlıklara dokunabilir ya da soruyu yazabilirsin." },
+      { k:["nasil baslarim","nereden baslarim","ne yapmaliyim","kullanim","nasil kullan"], a:"Bir taşınmazı getirmenin 3 yolu var: <b>1)</b> Üstteki kutuya <b>il ilçe mahalle ada parsel</b> yazıp <b>Bul</b>. <b>2)</b> <b>KML/KMZ</b> yükle. <b>3)</b> <b>TAKBİS Ekle</b> ile belgeyi yükle. Ayrıca haritaya tıklayarak da parsel getirebilirsin." },
+      { k:["takbis","tapu belge","belge yukle"], a:"<b>TAKBİS Ekle</b>'ye tıklayıp PDF'i seç. İl/ilçe/mahalle/ada/parsel otomatik okunur, <b>Bul</b> kutusuna yazılır; Bul'a basınca harita ve kartlar dolar." },
+      { k:["kml","kmz"], a:"<b>KML / KMZ</b> butonuyla dosyanı yükle. Parsel haritada çizilir, merkez koordinattan PGA ve zemin sınıfı otomatik hesaplanır." },
+      { k:["koordinat","harita tikla","haritaya tikla","haritadan"], a:"Haritada bir noktaya tıkla ya da Bul kutusuna <b>enlem, boylam</b> yaz (örn. 40.7648, 29.3862). TKGM'den parsel ters sorgu ile gelir." },
+      { k:["bul","arama","nasil ararim"], a:"<b>Bul</b> kutusuna iki şey yazabilirsin: koordinat (<b>enlem, boylam</b>) ya da <b>il ilçe mahalle ada parsel</b>." },
+      { k:["pga","deprem","ivme","475"], a:"<b>Deprem İvmesi</b> kartı, AFAD TDTH <b>PGA-475</b> değerini koordinattan otomatik verir (DD-2 senaryosu, 475 yıl tekrarlanma). 'İvmeyi Kopyala' ile panoya alırsın." },
+      { k:["zemin","vs30","zemin sinifi","za","zc","zd","ze","tbdy"], a:"<b>Zemin Sınıfı</b> kartı USGS <b>Vs30</b> değerini okur ve TBDY-2018'e göre <b>ZA–ZE</b> ön sınıfını verir (örn. Vs30 307 → ZD). Kesin sınıf için zemin etüdü gerekir." },
+      { k:["ekb","enerji kimlik","enerji belge","bep"], a:"<b>Adres Bilgileri</b> kartında <b>UAVT ya da bina kodu</b> girilince EKB, BEP-TR'den <b>otomatik</b> sorgulanır. Varsa bina adı, enerji sınıfı ve geçerlilik gösterilir, yeşil düğmeyle <b>PDF indirilir</b>." },
+      { k:["quick","adres kodu","uavt nasil","dask","quick sigorta","nasil calistir"], a:"Quick Sigorta ile adres kodu (UAVT) alma — 5 adım:<br><b>1)</b> Adres Bilgileri kartında idari mahalle, cadde/sokak, dış kapı gibi alanları doldur.<br><b>2)</b> <b>Quick'te Otomatik Doldur</b>'a bas → Quick sayfası açılır.<br><b>3)</b> Açılan sayfada yer imindeki <b>🔖 Vizyon Quick Doldur</b>'a tıkla → alanlar otomatik seçilir.<br><b>4)</b> reCAPTCHA'yı işaretle + Sorgula'ya bas (bu adım güvenlik gereği sende).<br><b>5)</b> Çıkan UAVT + bina kodu otomatik panoya kopyalanır; karta dönüp <b>Quick sonucunu yapıştır</b> de → kodlar iner, EKB kendiliğinden sorgulanır.<br>İlk kez kullanacaksan önce <b>⚙ Quick kurulumu</b>'ndan yer imini bir kez kur." },
+      { k:["idari mahalle","mahalle secim","piri reis","darica s"], a:"Parsel gelince <b>İdari Mahalle</b> listesi il/ilçeye göre dolar. Tapu mahallesi farklıysa (örn. 'Darıca Ş.') idari karşılığını (örn. Pirireis) sen seçersin." },
+      { k:["bina kodu","kimlik no"], a:"<b>Bina kodu</b> Quick sorgusundan gelir; EKB için bina kimlik no olarak kullanılır. Girildiğinde EKB otomatik sorgulanır." },
+      { k:["cdp","cevre duzeni","ogm","orman","arazi ortusu"], a:"<b>ÇDP ve OGM Bilgileri</b> kartı çevre düzeni planını ve orman/arazi örtüsü katmanlarını gösterir; ilgili portallara da butonla geçebilirsin." },
+      { k:["uavt nedir"], a:"UAVT = Ulusal Adres Veri Tabanı adres kodu (10 haneli). DASK ve EKB için gerekir. Quick üzerinden sorgulanır; sonuç UAVT + bina kodu olarak karta işlenir." },
+      { k:["tesekkur","sagol","eyvallah"], a:"Rica ederim! 🤖 Başka sorun olursa buradayım." }
+    ];
+    const chips = [
+      ["Nasıl başlarım?","nasil baslarim"],
+      ["TAKBİS nasıl eklenir?","takbis"],
+      ["EKB nedir?","ekb"],
+      ["Zemin sınıfı?","zemin"],
+      ["Adres kodu (Quick)?","quick"],
+      ["Deprem PGA?","pga"]
+    ];
+
+    function add(text, who) {
+      const el = document.createElement("div");
+      el.className = "vzbot-msg " + who;
+      el.innerHTML = text;
+      body.appendChild(el);
+      body.scrollTop = body.scrollHeight;
+    }
+    function addChips() {
+      const wrap = document.createElement("div");
+      wrap.className = "vzbot-chips";
+      chips.forEach(([label, q]) => {
+        const b = document.createElement("button");
+        b.className = "vzbot-chip"; b.type = "button"; b.textContent = label;
+        b.addEventListener("click", () => { add(label, "me"); setTimeout(() => cevap(q), 200); });
+        wrap.appendChild(b);
+      });
+      body.appendChild(wrap);
+      body.scrollTop = body.scrollHeight;
+    }
+    function bul(q) {
+      const n = norm(q);
+      let best = null, bestScore = 0;
+      KB.forEach(item => {
+        let score = 0;
+        item.k.forEach(key => { if (n.includes(norm(key))) score += norm(key).length; });
+        if (score > bestScore) { bestScore = score; best = item; }
+      });
+      return best && bestScore > 0 ? best.a : null;
+    }
+    function cevap(q) {
+      const ans = bul(q);
+      setTimeout(() => {
+        if (ans) add(ans, "bot");
+        else add("Bunu tam çözemedim 🤔 ama şu konularda yardımcı olabilirim: <b>parsel bulma, TAKBİS, KML, deprem (PGA), zemin sınıfı, EKB, adres kodu (Quick), idari mahalle</b>. Hangisi?", "bot");
+      }, 250);
+    }
+    function gonder() {
+      const q = input.value.trim();
+      if (!q) return;
+      add(q, "me"); input.value = "";
+      cevap(q);
+    }
+
+    let acildi = false;
+    function ac() {
+      bot.classList.add("open");
+      input.focus();
+      if (!acildi) {
+        acildi = true;
+        const badge = bot.querySelector(".vzbot-badge");
+        if (badge) badge.style.display = "none";
+        add("Merhaba! 👋 Ben <b>Vizyon Asistan</b>. CBS ekranıyla ilgili ne merak ediyorsan sor ya da aşağıdakilere dokun:", "bot");
+        addChips();
+      }
+    }
+    bot.querySelector(".vzbot-launch").addEventListener("click", () => {
+      bot.classList.contains("open") ? bot.classList.remove("open") : ac();
+    });
+    bot.querySelector(".vzbot-close").addEventListener("click", () => bot.classList.remove("open"));
+    document.getElementById("vzBotSend").addEventListener("click", gonder);
+    input.addEventListener("keydown", e => { if (e.key === "Enter") gonder(); });
+  })();
+  </script>
+</body>
+</html>
+
+
