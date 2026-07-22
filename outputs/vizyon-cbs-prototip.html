@@ -1228,7 +1228,7 @@
           <div class="company-title">
             <h1>V&#304;ZYON TA&#350;INMAZ DE&#286;ERLEME VE DANI&#350;MANLIK A.&#350;.</h1>
             <p>Vizyon Asistan - CBS Veri A&#287;&#305;</p>
-            <p class="version-note">Sürüm: 20.07.2026-j — Robot tüm asistanlarda, Quick cevabı adım adım</p>
+            <p class="version-note">Sürüm: 21.07.2026 — Vizyoner robot, Ziraat fesih güncellendi</p>
           </div>
         </div>
         <div class="search">
@@ -3167,7 +3167,7 @@
   </style>
 
   <div id="vzBot">
-    <div class="vzbot-panel" role="dialog" aria-label="Vizyon Robot Asistan">
+    <div class="vzbot-panel" role="dialog" aria-label="Vizyoner">
       <div class="vzbot-head">
         <svg class="vzbot-avatar" viewBox="0 0 64 64" aria-hidden="true">
           <rect x="27" y="4" width="4" height="9" rx="2" fill="#cfe9ef"/><circle cx="29" cy="4" r="4" fill="#d71920"/>
@@ -3179,7 +3179,7 @@
           <rect x="20" y="52" width="24" height="7" rx="3.5" fill="#cfe9ef"/>
         </svg>
         <div>
-          <h4>Vizyon Asistan</h4>
+          <h4>Vizyoner</h4>
           <p>CBS sorularını yanıtlar</p>
         </div>
         <button class="vzbot-close" type="button" aria-label="Kapat">×</button>
@@ -3190,7 +3190,7 @@
         <button class="vzbot-send" id="vzBotSend" type="button" aria-label="Gönder">➤</button>
       </div>
     </div>
-    <button class="vzbot-launch" type="button" aria-label="Vizyon Asistan'a sor">
+    <button class="vzbot-launch" type="button" aria-label="Vizyoner'e sor">
       <span class="vzbot-badge">?</span>
       <svg width="38" height="38" viewBox="0 0 64 64" aria-hidden="true">
         <rect x="27" y="3" width="4" height="9" rx="2" fill="#cfe9ef"/><circle cx="29" cy="3.5" r="4" fill="#d71920"/>
@@ -3218,7 +3218,7 @@
 
     // Bilgi tabanı: her giriş anahtar kelimelerle eşleşir.
     const KB = [
-      { k:["merhaba","selam","nasilsin","gunaydin","iyi gunler"], a:"Merhaba! 👋 Ben Vizyon Asistan. CBS ekranıyla ilgili sorularını yanıtlarım. Aşağıdaki başlıklara dokunabilir ya da soruyu yazabilirsin." },
+      { k:["merhaba","selam","nasilsin","gunaydin","iyi gunler"], a:"Merhaba! 👋 Ben <b>Vizyoner</b>. CBS ekranıyla ilgili sorularını yanıtlarım. Aşağıdaki başlıklara dokunabilir ya da soruyu yazabilirsin." },
       { k:["nasil baslarim","nereden baslarim","ne yapmaliyim","kullanim","nasil kullan"], a:"Bir taşınmazı getirmenin 3 yolu var: <b>1)</b> Üstteki kutuya <b>il ilçe mahalle ada parsel</b> yazıp <b>Bul</b>. <b>2)</b> <b>KML/KMZ</b> yükle. <b>3)</b> <b>TAKBİS Ekle</b> ile belgeyi yükle. Ayrıca haritaya tıklayarak da parsel getirebilirsin." },
       { k:["takbis","tapu belge","belge yukle"], a:"<b>TAKBİS Ekle</b>'ye tıklayıp PDF'i seç. İl/ilçe/mahalle/ada/parsel otomatik okunur, <b>Bul</b> kutusuna yazılır; Bul'a basınca harita ve kartlar dolar." },
       { k:["kml","kmz"], a:"<b>KML / KMZ</b> butonuyla dosyanı yükle. Parsel haritada çizilir, merkez koordinattan PGA ve zemin sınıfı otomatik hesaplanır." },
@@ -3294,7 +3294,7 @@
         acildi = true;
         const badge = bot.querySelector(".vzbot-badge");
         if (badge) badge.style.display = "none";
-        add("Merhaba! 👋 Ben <b>Vizyon Asistan</b>. CBS ekranıyla ilgili ne merak ediyorsan sor ya da aşağıdakilere dokun:", "bot");
+        add("Merhaba! 👋 Ben <b>Vizyoner</b>. CBS ekranıyla ilgili ne merak ediyorsan sor ya da aşağıdakilere dokun:", "bot");
         addChips();
       }
     }
